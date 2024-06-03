@@ -23,7 +23,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
     if "customer_info_input_dict" not in st.session_state:
         st.session_state["customer_info_input_dict"] = ''
 
-    if st.button(":star2: :orange[**NEW_bid_INFO**]", use_container_width=True):
+    if st.button(":star2: :orange[**NEW_BID_INFO**]", use_container_width=True):
         init_bid_input_info_form_locked()
 
     if st.button(":star2: :orange[**NEW_CUSTOMER_INFO**]", use_container_width=True):
@@ -38,6 +38,12 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
     with open(yaml_file_path,'r',encoding='utf8') as data_file:
         data = yaml.safe_load(data_file,)
 
-    st.data_editor(data['SVTECH_INFO'])
-    st.data_editor(data['BID_INFO'])
+    st.header("SVTECH INFO")
+    st.table(data['SVTECH_INFO'])
+
+    st.header("BID_OWNER LIST")
     st.data_editor(data['BID_OWNER'])
+    
+    st.header("BID_INFO LIST")
+    st.data_editor(data['BID_INFO'])
+    

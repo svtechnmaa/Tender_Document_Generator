@@ -26,37 +26,22 @@ CRITICAL = 2
 UNKNOWN = 3
 
 
+# ## Read VAR_PATH from env 
+# if "STREAMLIT_CONFIG" in os.environ:
+#   file_path= os.environ['STREAMLIT_CONFIG']
+# else:
+#   file_path = "./default_variable.yml"
+# print(f"STREAMLIT_CONFIG IS {file_path}")
+# config=read_config_yaml(file_path)
+
+
 def CREATE_EXPORT_DIR ( directory = "./" ) :
-    # type: (directory) -> string
     """CREATE DIR"""
     if not os.path.exists ( directory ) :
         os.makedirs ( directory )
         logging.debug ( 'Created new directory: ' + directory )
     else :
         logging.debug ( 'Directory already existed ' + directory )
-    return directory
-
-
-def REMOVE_EXPORT_DIR ( directory = "./" ) :
-    # type: (directory) -> string
-    """CREATE DIR"""
-    if os.path.exists ( directory ) :
-        try :
-            os.removedirs ( directory )
-        except Exception as e :
-            logging.error ( ' Error removing directory due to ' + str ( e ) )
-            logging.error ( ' Trying to remove all sub directory and files' )
-            
-            for root , dirs , files in os.walk ( directory , topdown = False ) :
-                for name in files :
-                    os.remove ( os.path.join ( root , name ) )
-                for name in dirs :
-                    os.rmdir ( os.path.join ( root , name ) )
-            os.removedirs ( directory )
-
-        logging.debug ( 'Removed directory: ' + directory )
-    else :
-        logging.debug ( 'Directory does not existed ' + directory )
     return directory
 
 
@@ -127,6 +112,17 @@ def TIME_INIT ( ) :
 
     return current_time
 
+
+class OneLineExceptionFormatter(logging.Formatter):
+    def formatException(self, exc_info):
+        result = super(OneLineExceptionFormatter, self).formatException(exc_info)
+        return repr(result) # or format into one line however you want to
+
+    def format(self, record):
+        s = super(OneLineExceptionFormatter, self).format(record)
+        if record.exc_text:
+            s = s.replace('\n', '') + '|'
+        return s
 
 def LOGGER_INIT ( log_level = logging.INFO ,
                   log_file = 'unconfigured_log.log' ,
@@ -271,17 +267,6 @@ def read_config_yaml(file_path):
     with open(file_path, 'r') as yaml_file:
         config_data = yaml.safe_load(yaml_file)
         return config_data
-      
-
-
-## Read VAR_PATH from env 
-if "STREAMLIT_CONFIG" in os.environ:
-  file_path= os.environ['STREAMLIT_CONFIG']
-else:
-  file_path = "./default_variable.yml"
-print(f"STREAMLIT_CONFIG IS {file_path}")
-config=read_config_yaml(file_path)
-
 
 def generate_single_input_dict(usable_input_option = ''):
     input_dict={} 
