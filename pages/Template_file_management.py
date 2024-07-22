@@ -45,14 +45,18 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
             st.subheader("Template inside template set {}".format(template))
             st.write(file_list)
             
-            delete_widget, recreate_widget = st.columns([1,1])
+            delete_widget, download_widget, recreate_widget = st.columns([1,1,1])
             with delete_widget:
-                with st.popover(":star2: :red[DELETE_{}]".format(template)):
+                with st.popover(":x: :red[DELETE_{}]".format(template), use_container_width=True):
                     st.subheader("Are you ABSOLUTELY SURE you want to delete this template set {}".format(template))
                     if st.button("Confirm delete {}".format(template)):
                         shutil.rmtree(os.path.join(template_path,template))
                         st.rerun()
             with recreate_widget:
-                if st.button(":star2: :green[RECREATE_TEMPLATE_{}]".format(template), use_container_width=True):
+                if st.button(":pencil2: :green[RECREATE_TEMPLATE_{}]".format(template), use_container_width=True):
                     inititate_template_dialog(template_directory= template_path,
                                               template_name=template)
+            with download_widget:
+                if st.button(":arrow_down: :green[DOWNLOAD_{}]".format(template), use_container_width=True):
+                    st.rerun()
+                    ##use the same download function as the output rendering here - inprogress

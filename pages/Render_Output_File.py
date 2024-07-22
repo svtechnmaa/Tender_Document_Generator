@@ -77,19 +77,18 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
             #dynamic_filters[data_type].display_df()
 
 
-        ####Generate context data
-        st.header("List context data")
-        for selected_bid in  dynamic_filters["BID_INFO"].filter_df().to_dict('records'):
-            # st.write(selected_bid)
-            for selected_owner in dynamic_filters["BID_OWNER"].filter_df().to_dict('records'):
-                context = dict()
-                for key,value in selected_bid.items():
-                    context[key] = value
-                for key,value in selected_owner.items():
-                    context[key] = value
-                context_data_list.append(context)
+    ####Generate context data
+    for selected_bid in  dynamic_filters["BID_INFO"].filter_df().to_dict('records'):
+        # st.write(selected_bid)
+        for selected_owner in dynamic_filters["BID_OWNER"].filter_df().to_dict('records'):
+            context = dict()
+            for key,value in selected_bid.items():
+                context[key] = value
+            for key,value in selected_owner.items():
+                context[key] = value
+            context_data_list.append(context)
                 
-    with st.popover("Preview before render"):
+    with st.popover(":cinema: :orange[Preview before render]", use_container_width=True):
         st.write(selected_template_sets)
         for context in context_data_list:
             st.write(context)
@@ -125,3 +124,5 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                         st.write("Creating fiile  {}...".format(os.path.abspath(output_file_name)))
                         template_object.save(os.path.abspath(output_file_name))
             st.write("Done")
+            # Provide user with a download button that let them download the content of each output_dir
+            # this should be simple but we need a way to store/edit actual data first.

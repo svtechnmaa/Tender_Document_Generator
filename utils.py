@@ -426,57 +426,45 @@ def file_selector(folder_path='.'):
 
 
 @st.experimental_dialog("NEW_BID_INFO_INPUT_DIAGLOG")
-def init_bid_input_info_form_locked():
+def init_bid_input_info_form_locked(bid_info_schema = None):
 
     st.subheader(':orange[**Get info of new Bid and saving it to DB**]')
-    # with st.container(border=True):
-    #   st.info(':green[List available routers]')
-    #   if not st.session_state.Bid_info_input_dict:
-    #     st.code('Empty')
-    #   else:
-    #     for i in st.session_state.Bid_info_input_dict:
-    #       st.code(i.get('ip'))
-        
-    with st.form("BidInfo"):
-        BidInfoArgs = [ "Tender",
-                            "E_TBMT",
-                            "Ten_goi_thau",
-                            "Ten_du_an",
-                            "ngay_dong_thau",
-                            "thoi_gian_dong_thau",
-                            "Ngay_thang_ky_ho_so",
-                            "Ngay_yeu_cau_BLDT",
-                            "gia_tri_BLDT",
-                            "hieu_luc_BLDT",
-                            "Hieu_luc_E_HSDT",
-                            "Chuc_danh",
-                            "Nguoi_ky"]
 
-        Bid_input_data = generate_single_input_dict(BidInfoArgs)
+    if bid_info_schema is None:
+        logging.error("No bid info data field fount, exiting")
+        sys.exit(1)
+    
+    ### submission of data cannot be put inside if/else otherwise Streamlit will complain
+    with st.form("BidInfo"):
+        logging.info("Generating input form for data schema {}".format(bid_info_schema))
+        bid_input_data = generate_single_input_dict(bid_info_schema)
         
         submitted = st.form_submit_button(label= "SAVE", type= 'primary')
 
     if submitted:
         with st.spinner('Saving new Bid data...'):
-            st.session_state["Bid_info_input_dict"] = Bid_input_data
+            st.session_state["bid_info_input_dict"] = bid_input_data
 
-        if not st.session_state.Bid_info_input_dict:
+        if not st.session_state.bid_info_input_dict:
             st.error('No new info available')
         else:
-            st.dataframe(st.session_state["Bid_info_input_dict"])
+            st.dataframe(st.session_state["bid_info_input_dict"])
             st.success('Done')
+    ## tu.doan July 2024
+    # need to do something here to save to selected datastore of choice, SQLite do not work OK so fuurther code has been removed
 
 @st.experimental_dialog("NEW_CUSTOMER_INFO_INPUT_DIAGLOG")
-def init_customer_input_info_form_locked():
+def init_customer_input_info_form_locked(customer_info_schema = None ):
 
     st.subheader(':orange[**Get info of new customer and saving it to DB**]')
-
+    if customer_info_schema is None:
+        logging.error("No bid info data field fount, exiting")
+        sys.exit(1)
+    
+    ### submission of data cannot be put inside if/else otherwise Streamlit will complain
     with st.form("CustomerInfo"):
-        CustomerInfoArgs = [ "Ben_moi_thau",
-                            "Dia_chi_BMT"]
-
-        customer_input_data = generate_single_input_dict(CustomerInfoArgs)
-        
+        logging.info("Generating input form for data schema {}".format(customer_info_schema))
+        customer_input_data = generate_single_input_dict(customer_info_schema)
         submitted = st.form_submit_button(label= "SAVE", type= 'primary')
 
     if submitted:
@@ -484,11 +472,13 @@ def init_customer_input_info_form_locked():
             time.sleep(1)
             st.session_state["customer_info_input_dict"] = customer_input_data
 
-        if not st.session_state.Bid_info_input_dict:
+        if not st.session_state.customer_info_input_dict:
             st.error('No new info available')
         else:
-            st.dataframe(st.session_state["Bid_info_input_dict"])
+            st.dataframe(st.session_state["customer_info_input_dict"])
             st.success('Done')
+    ## tu.doan July 2024
+    # need to do something here to save to selected datastore of choice, SQLite do not work OK so fuurther code has been removed
 
 
 @st.experimental_dialog("NEW_TEMPLATE_SET_DIALOG")
