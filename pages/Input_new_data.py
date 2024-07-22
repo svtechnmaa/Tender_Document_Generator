@@ -59,11 +59,11 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         data = yaml.safe_load(data_file,)
 
     st.header("SVTECH INFO")
-    st.table(data['SVTECH_INFO'])
+    st.dataframe(data['SVTECH_INFO'],use_container_width = True)
 
     st.header("BID_OWNER LIST")
-    st.data_editor(data['BID_OWNER'])
+    st.dataframe(data['BID_OWNER'],use_container_width = True)
     
     st.header("BID_INFO LIST")
-    st.data_editor(data['BID_INFO'])
+    st.dataframe(data['BID_INFO'],use_container_width = True)
     
