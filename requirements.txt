@@ -1,0 +1,6 @@
+docxtpl==0.18.0
+pandas==2.2.2
+PyYAML==6.0.1
+rarfile==4.2
+streamlit==1.36.0
+streamlit_dynamic_filters==0.1.6

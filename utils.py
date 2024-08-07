@@ -19,6 +19,8 @@ import time
 import pickle
 import pandas as pd
 import json
+import sqlite3
+from datetime import datetime
 
 OK = 0
 WARNING = 1
@@ -321,9 +323,24 @@ def extract_rar(data, output_dir):
     with rarfile.RarFile(BytesIO(data), 'r') as rar:
         rar.extractall(output_dir)
 
+def compress_folder(folder_path):
+    import io
+    import zipfile
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Walk through the folder
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                # Add file to the zip file
+                zip_file.write(file_path, os.path.relpath(file_path, folder_path))
+    zip_file.close()
+    zip_buffer.seek(0)  # Move to the beginning of the buffer
+    return zip_buffer
+
 def download_file_button(object_to_download, download_filename, button_text, pickle_it=False):
     import base64
-    import io
     import uuid
     """
     Generates a link to download the given object_to_download.
@@ -343,6 +360,7 @@ def download_file_button(object_to_download, download_filename, button_text, pic
     download_link(your_df, 'YOUR_DF.csv', 'Click to download data!')
     download_link(your_str, 'YOUR_STRING.txt', 'Click to download text!')
     """
+    st.write()
     if pickle_it:
         try:
             object_to_download = pickle.dumps(object_to_download)
@@ -352,7 +370,6 @@ def download_file_button(object_to_download, download_filename, button_text, pic
     else:
         if isinstance(object_to_download, bytes):
             pass
-
         elif isinstance(object_to_download, pd.DataFrame):
             object_to_download = object_to_download.to_csv(index=False)
         else:
@@ -361,23 +378,28 @@ def download_file_button(object_to_download, download_filename, button_text, pic
         b64 = base64.b64encode(object_to_download.encode()).decode()
     except AttributeError as e:
         b64 = base64.b64encode(object_to_download).decode()
-
     button_uuid = str(uuid.uuid4()).replace('-', '')
     button_id = re.sub('\d+', '', button_uuid)
 
     custom_css = f""" 
         <style>
             #{button_id} {{
+                width: 100%;
                 background-color: rgb(255, 255, 255);
                 color: rgb(38, 39, 48);
-                padding: 0.25em 0.38em;
+                padding: 0.41em 0.38em;
                 position: relative;
                 text-decoration: none;
-                border-radius: 4px;
+                border-radius: 6px;
                 border-width: 1px;
                 border-style: solid;
-                border-color: rgb(230, 234, 241);
+                border-color: rgb(49, 51, 63, 0.2);
                 border-image: initial;
+                white-space: normal;
+                display: inline-block; /* Make the <a> element respect width and height properties */
+                word-wrap: break-word; /* Break long words onto new lines if needed */
+                overflow-wrap: break-word; /* Fallback for older browsers */
+                text-align: center;
             }} 
             #{button_id}:hover {{
                 border-color: rgb(246, 51, 102);
@@ -423,10 +445,35 @@ def file_selector(folder_path='.'):
     selected_filename = st.multiselect('Select files', file_names)
     return selected_filename
 
+def create_default_table(db_path):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    listOfTables = cur.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='data' ''')
+    if listOfTables.fetchone()[0]==0:
+        table = """ CREATE TABLE data (
+                ID INT NOT NULL,
+                type VARCHAR(25) NOT NULL,
+                key VARCHAR(50) NOT NULL,
+                value VARCHAR(65535) NOT NULL,
+                time DATETIME
+            ); """
+        cur.execute(table)
+        insert_query="""INSERT INTO data (ID,type,key,value,time) VALUES(?,?,?,?,?)"""
+        cur.executemany(insert_query, 
+                        [(1,"SVTECH_INFO","Ten_nha_thau","Công ty Cổ phần Phát triển Công nghệ Viễn thông Tin học Sun Việt (SV Technologies JSC)",datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                        (1,"SVTECH_INFO","Dia_chi_nha_thau","Số 2A Phan Thúc Duyện, Phường 4, Quận Tân Bình, TP. Hồ Chí Minh, Việt Nam",datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                        (1,"SVTECH_INFO","Dia_chi_VP_HN","Toà nhà IC, Tầng 6, 82 Duy Tân, Cầu Giấy, Hà Nội",datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+                        ])
+        conn.commit()
+    cur.close()
+    conn.close()
 
+def loading_data(conn, type):
+    data=pd.read_sql_query("SELECT * FROM 'data' where type=(?)" , conn,params=(type,))
+    return data.pivot(values='value', index=['ID', 'type','time'], columns='key').reset_index()
 
 @st.experimental_dialog("NEW_BID_INFO_INPUT_DIAGLOG")
-def init_bid_input_info_form_locked(bid_info_schema = None):
+def init_bid_input_info_form_locked(database_path,bid_info_schema = None):
 
     st.subheader(':orange[**Get info of new Bid and saving it to DB**]')
 
@@ -448,13 +495,33 @@ def init_bid_input_info_form_locked(bid_info_schema = None):
         if not st.session_state.bid_info_input_dict:
             st.error('No new info available')
         else:
-            st.dataframe(st.session_state["bid_info_input_dict"])
+            # st.write(st.session_state.bid_info_input_dict) 
+            conn = sqlite3.connect(database_path)
+            cur = conn.cursor()
+            listOfTables = cur.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='data' ''')
+            if listOfTables.fetchone()[0]==1:
+                list_E_TBMT=cur.execute('select value from data where key="E_TBMT"').fetchall()
+                if st.session_state.bid_info_input_dict['E_TBMT'] in [d[0] for d in list_E_TBMT]:
+                    st.error('E_TBMT {} already exist!!!!!'.format(st.session_state.bid_info_input_dict['E_TBMT']))
+                    return
+                id=cur.execute('''SELECT COALESCE(MAX(ID)+1, 0) FROM data''').fetchone()[0]
+            else:
+                id=1
+            cur.close()
+            bid_info=pd.DataFrame(list(st.session_state.bid_info_input_dict.items()), columns=['key', 'value'])
+            bid_info['type']='BID_INFO'
+            bid_info['time']=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            bid_info['ID']=id
+            bid_info.to_sql(name='data', con=conn, if_exists='append', index=False)
+            conn.close()
             st.success('Done')
+            st.rerun()
     ## tu.doan July 2024
     # need to do something here to save to selected datastore of choice, SQLite do not work OK so fuurther code has been removed
 
 @st.experimental_dialog("NEW_CUSTOMER_INFO_INPUT_DIAGLOG")
-def init_customer_input_info_form_locked(customer_info_schema = None ):
+def init_customer_input_info_form_locked(database_path,customer_info_schema = None ):
 
     st.subheader(':orange[**Get info of new customer and saving it to DB**]')
     if customer_info_schema is None:
@@ -475,8 +542,22 @@ def init_customer_input_info_form_locked(customer_info_schema = None ):
         if not st.session_state.customer_info_input_dict:
             st.error('No new info available')
         else:
-            st.dataframe(st.session_state["customer_info_input_dict"])
+            conn = sqlite3.connect(database_path)
+            cur = conn.cursor()
+            listOfTables = cur.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='data' ''')
+            if listOfTables.fetchone()[0]==1:
+                id=cur.execute('''SELECT COALESCE(MAX(ID)+1, 0) FROM data''').fetchone()[0]
+            else:
+                id=1
+            cur.close()
+            bid_info=pd.DataFrame(list(st.session_state.customer_info_input_dict.items()), columns=['key', 'value'])
+            bid_info['type']='BID_OWNER'
+            bid_info['time']=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            bid_info['ID']=id
+            bid_info.to_sql(name='data', con=conn, if_exists='append', index=False)
+            conn.close()
             st.success('Done')
+            st.rerun()
     ## tu.doan July 2024
     # need to do something here to save to selected datastore of choice, SQLite do not work OK so fuurther code has been removed
 
