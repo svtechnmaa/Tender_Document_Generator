@@ -66,11 +66,17 @@ jobs:
         docker push ghcr.io/${{ github.repository_owner }}/${{ env.REPO }}:v1.${{ github.run_number }}
         docker push ghcr.io/${{ github.repository_owner }}/${{ env.REPO }}:latest
 
-    - name: Get JOB_No
-      id: get-job-no
-      run: echo "JOB_NO=${{ github.event.workflow_run.run_number }}" >> $GITHUB_ENV
     - name: Update image version in helm chart
       run: |
-        echo "The JOB_No is ${{ env.JOB_NO }}"
+        echo "The JOB_No is ${{ github.run_number }}"
         # Nextstep to push
+        git config --global user.name "svtechnmaa"
+        git config --global user.email "nmaa@svtech.com.vn"
+        git clone -b feature/streamlit git@github.com:svtechnmaa/charts.git --depth=1 --single-branch
+        cd charts/
+        sed -i '/^  repository: ghcr.io\/svtechnmaa\/svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"v1.${{ github.run_number }}"'/}' kubernetes/docxtemplate/values.yaml
+        git add .
+        git commit -m "no-ci: Update docxtemplate image version"
+        git remote set-url origin https://svtechnmaa:${{ secrets.GITHUB_TOKEN }}@github.com/svtechnmaa/charts.git
+        git push origin feature/streamlit
     
