@@ -69,14 +69,15 @@ jobs:
     - name: Update image version in helm chart
       run: |
         echo "The JOB_No is ${{ github.run_number }}"
+        echo "GitHub Actions is not allowed to push commits to the repo, so we can't do it here now."
         # Nextstep to push
-        git config --global user.name "svtechnmaa"
-        git config --global user.email "nmaa@svtech.com.vn"
-        git clone -b feature/streamlit https://github.com/svtechnmaa/charts.git --depth=1 --single-branch
-        cd charts/
-        sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"v1.${{ github.run_number }}"'/}' kubernetes/docxtemplate/values.yaml
-        git add .
-        git commit -m "no-ci: Update docxtemplate image version"
-        git remote set-url origin https://svtechnmaa:${{ secrets.GITHUB_TOKEN }}@github.com/svtechnmaa/charts.git
-        git push origin feature/streamlit
+        # git config --global user.name "svtechnmaa"
+        # git config --global user.email "nmaa@svtech.com.vn"
+        # git clone -b feature/streamlit https://github.com/svtechnmaa/charts.git --depth=1 --single-branch
+        # cd charts/
+        # sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"v1.${{ github.run_number }}"'/}' kubernetes/docxtemplate/values.yaml
+        # git add .
+        # git commit -m "no-ci: Update docxtemplate image version"
+        # git remote set-url origin https://svtechnmaa:${{ secrets.GITHUB_TOKEN }}@github.com/svtechnmaa/charts.git
+        # git push origin feature/streamlit
     
