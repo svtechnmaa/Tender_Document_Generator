@@ -72,7 +72,7 @@ jobs:
         # Nextstep to push
         git config --global user.name "svtechnmaa"
         git config --global user.email "nmaa@svtech.com.vn"
-        git clone -b feature/streamlit git@github.com:svtechnmaa/charts.git --depth=1 --single-branch
+        git clone -b feature/streamlit https://github.com/svtechnmaa/charts.git --depth=1 --single-branch
         cd charts/
         sed -i '/^  repository: ghcr.io\/svtechnmaa\/svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"v1.${{ github.run_number }}"'/}' kubernetes/docxtemplate/values.yaml
         git add .
