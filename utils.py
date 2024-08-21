@@ -620,17 +620,18 @@ def inititate_import_data_dialog(type, db_conn):
                 st.error("No key column {} of {} in excel file".format(type_key[type],type))
             else:
                 current_data=loading_data(conn=db_conn,type=type)
-                duplicate_data=(current_data.merge(new_data.drop_duplicates(), on=type_key[type], how='inner', indicator=True)).query("_merge == 'both'")
-                if not duplicate_data.empty:
-                    st.error("{} with {} value {} already exist".format(type,type_key[type],', '.join(duplicate_data[type_key[type]].to_list())))
-                else:
-                    cur=db_conn.cursor()
-                    id=get_next_id(cur)
-                    cur.close()
-                    new_data.insert(0, 'ID', range(id, id + len(new_data)))
-                    new_data['type']=type
-                    new_data['time']=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    new_data=new_data.melt(id_vars=['ID', 'type','time']).reset_index().drop(columns=['index']).rename(columns={"variable": "key"})
-                    new_data.to_sql(name='data', con=db_conn, if_exists='append', index=False)
-                    st.success('Done')
-                    st.rerun()
+                if not current_data.empty:
+                    duplicate_data=(current_data.merge(new_data.drop_duplicates(), on=type_key[type], how='inner', indicator=True)).query("_merge == 'both'")
+                    if not duplicate_data.empty:
+                        st.error("{} with {} value {} already exist".format(type,type_key[type],', '.join(duplicate_data[type_key[type]].to_list())))
+                        return
+                cur=db_conn.cursor()
+                id=get_next_id(cur)
+                cur.close()
+                new_data.insert(0, 'ID', range(id, id + len(new_data)))
+                new_data['type']=type
+                new_data['time']=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                new_data=new_data.melt(id_vars=['ID', 'type','time']).reset_index().drop(columns=['index']).rename(columns={"variable": "key"})
+                new_data.to_sql(name='data', con=db_conn, if_exists='append', index=False)
+                st.success('Done')
+                st.rerun()
