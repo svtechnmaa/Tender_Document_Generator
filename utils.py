@@ -269,6 +269,10 @@ def read_config_yaml(file_path):
     with open(file_path, 'r') as yaml_file:
         config_data = yaml.safe_load(yaml_file)
         return config_data
+    
+def write_config_yaml(file_path,data):
+    with open(file_path,'w') as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 def generate_single_input_dict(usable_input_option = ''):
     input_dict={} 
@@ -472,8 +476,16 @@ def loading_data(conn, type):
     data=pd.read_sql_query("SELECT * FROM 'data' where type=(?)" , conn,params=(type,))
     return data.pivot(values='value', index=['ID', 'type','time'], columns='key').reset_index()
 
+def get_next_id(cursor):
+    listOfTables = cursor.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='data' ''')
+    if listOfTables.fetchone()[0]==1:
+        id=cursor.execute('''SELECT COALESCE(MAX(ID)+1, 0) FROM data''').fetchone()[0]
+    else:
+        id=1
+    return id
+
 @st.experimental_dialog("NEW_BID_INFO_INPUT_DIAGLOG")
-def init_bid_input_info_form_locked(database_path,bid_info_schema = None):
+def init_bid_input_info_form_locked(conn,bid_info_schema = None):
 
     st.subheader(':orange[**Get info of new Bid and saving it to DB**]')
 
@@ -495,18 +507,14 @@ def init_bid_input_info_form_locked(database_path,bid_info_schema = None):
         if not st.session_state.bid_info_input_dict:
             st.error('No new info available')
         else:
-            # st.write(st.session_state.bid_info_input_dict) 
-            conn = sqlite3.connect(database_path)
             cur = conn.cursor()
-            listOfTables = cur.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='data' ''')
-            if listOfTables.fetchone()[0]==1:
-                list_E_TBMT=cur.execute('select value from data where key="E_TBMT"').fetchall()
-                if st.session_state.bid_info_input_dict['E_TBMT'] in [d[0] for d in list_E_TBMT]:
+            id=get_next_id(cur)
+            if id>1:
+                check_exist_TBMT=cur.execute('select value from data where key="E_TBMT" and value="{}"'.format(st.session_state.bid_info_input_dict['E_TBMT'])).fetchall()
+                if len(check_exist_TBMT)>0:
+                    cur.close()
                     st.error('E_TBMT {} already exist!!!!!'.format(st.session_state.bid_info_input_dict['E_TBMT']))
                     return
-                id=cur.execute('''SELECT COALESCE(MAX(ID)+1, 0) FROM data''').fetchone()[0]
-            else:
-                id=1
             cur.close()
             bid_info=pd.DataFrame(list(st.session_state.bid_info_input_dict.items()), columns=['key', 'value'])
             bid_info['type']='BID_INFO'
@@ -521,7 +529,7 @@ def init_bid_input_info_form_locked(database_path,bid_info_schema = None):
     # need to do something here to save to selected datastore of choice, SQLite do not work OK so fuurther code has been removed
 
 @st.experimental_dialog("NEW_CUSTOMER_INFO_INPUT_DIAGLOG")
-def init_customer_input_info_form_locked(database_path,customer_info_schema = None ):
+def init_customer_input_info_form_locked(conn,customer_info_schema = None ):
 
     st.subheader(':orange[**Get info of new customer and saving it to DB**]')
     if customer_info_schema is None:
@@ -542,13 +550,14 @@ def init_customer_input_info_form_locked(database_path,customer_info_schema = No
         if not st.session_state.customer_info_input_dict:
             st.error('No new info available')
         else:
-            conn = sqlite3.connect(database_path)
             cur = conn.cursor()
-            listOfTables = cur.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='data' ''')
-            if listOfTables.fetchone()[0]==1:
-                id=cur.execute('''SELECT COALESCE(MAX(ID)+1, 0) FROM data''').fetchone()[0]
-            else:
-                id=1
+            id=get_next_id(cur)
+            if id>1:
+                check_exist_TBMT=cur.execute('select value from data where key="Ten_viet_tat_BMT" and value="{}"'.format(st.session_state.customer_info_input_dict['Ten_viet_tat_BMT'])).fetchall()
+                if len(check_exist_TBMT)>0:
+                    cur.close()
+                    st.error('Ten_viet_tat_BMT {} already exist!!!!!'.format(st.session_state.customer_info_input_dict['Ten_viet_tat_BMT']))
+                    return
             cur.close()
             bid_info=pd.DataFrame(list(st.session_state.customer_info_input_dict.items()), columns=['key', 'value'])
             bid_info['type']='BID_OWNER'
@@ -594,3 +603,34 @@ def inititate_template_dialog(template_directory = "templates",template_name = "
             st.success('Done')
             st.rerun()
     
+@st.experimental_dialog("NEW_DATA_SET_DIALOG")
+def inititate_import_data_dialog(type, db_conn):
+    st.subheader(':orange[**Upload new {} data set**]'.format(type))
+    with st.form("NewDataInfo"):
+        uploaded_file = st.file_uploader(label = "Choose file excel to import to the data set",type=['xlsx'])
+        sheet_name = st.text_input("Input the sheet name contain data",value="Sheet1")
+        
+        submitted = st.form_submit_button(label= "SAVE DATA SET", type= 'primary')
+
+    if submitted:
+        with st.spinner('Saving new data set '):
+            new_data=pd.read_excel(uploaded_file,sheet_name=sheet_name)
+            type_key={'SVTECH_INFO':'Ten_nha_thau','BID_OWNER':'Ten_viet_tat_BMT','BID_INFO':'E_TBMT'}
+            if type_key[type] not in new_data.columns:
+                st.error("No key column {} of {} in excel file".format(type_key[type],type))
+            else:
+                current_data=loading_data(conn=db_conn,type=type)
+                duplicate_data=(current_data.merge(new_data.drop_duplicates(), on=type_key[type], how='inner', indicator=True)).query("_merge == 'both'")
+                if not duplicate_data.empty:
+                    st.error("{} with {} value {} already exist".format(type,type_key[type],', '.join(duplicate_data[type_key[type]].to_list())))
+                else:
+                    cur=db_conn.cursor()
+                    id=get_next_id(cur)
+                    cur.close()
+                    new_data.insert(0, 'ID', range(id, id + len(new_data)))
+                    new_data['type']=type
+                    new_data['time']=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    new_data=new_data.melt(id_vars=['ID', 'type','time']).reset_index().drop(columns=['index']).rename(columns={"variable": "key"})
+                    new_data.to_sql(name='data', con=db_conn, if_exists='append', index=False)
+                    st.success('Done')
+                    st.rerun()

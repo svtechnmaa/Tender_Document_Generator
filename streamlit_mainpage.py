@@ -13,7 +13,7 @@ current_time = TIME_INIT()
 
 
 st.set_page_config(
-     layout="wide",
+     # layout="wide",
      initial_sidebar_state="expanded",
 )
 

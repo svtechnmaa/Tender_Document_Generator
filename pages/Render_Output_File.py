@@ -52,6 +52,15 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                                 "database.sqlite")
                             )
     conn = sqlite3.connect(db_file_path)
+    # yaml_file_path = os.path.normpath(
+    #                         os.path.join(
+    #                             os.path.dirname(os.path.abspath(__file__)),
+    #                             ".." , 
+    #                             "data/project_data.yaml")
+    #                 )
+
+    # with open(yaml_file_path,'r',encoding='utf8') as data_file:
+    #     data = yaml.safe_load(data_file,)
 
     # st.session_state['project_data'] = data
     st.session_state['data_state']=True
@@ -62,6 +71,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         dynamic_filters = {}
         for data_type in ["BID_INFO", "BID_OWNER"]:
             st.header("{} LIST".format(data_type))
+            # df = pd.DataFrame(st.session_state['project_data'][data_type])
             df=loading_data(conn, data_type)
             if df.empty:
                 st.session_state['data_state']=False
@@ -70,8 +80,9 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                 if data_type == "BID_INFO":
                     dynamic_filters[data_type] = DynamicFilters(df, filters=['E_TBMT'], filters_name= data_type)
                 elif data_type == "BID_OWNER":
-                    dynamic_filters[data_type] = DynamicFilters(df, filters=['Ben_moi_thau'], filters_name= data_type)
+                    dynamic_filters[data_type] = DynamicFilters(df, filters=['Ten_viet_tat_BMT'], filters_name= data_type)
                 dynamic_filters[data_type].display_filters()
+            #dynamic_filters[data_type].display_df()
 
 
     ####Generate context data
