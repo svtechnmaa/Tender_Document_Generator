@@ -59,7 +59,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
     
     ##########LISTING CURRENT DATA##########
     all_data=pd.read_sql_query("SELECT * FROM 'data'" , conn)
-    all_config=read_config_yaml(os.path.normpath(
+    all_config_schema=read_config_yaml(os.path.normpath(
                                 os.path.join(
                                 os.environ['DB_DIR'],
                                 "input_data_schema.yaml")
@@ -75,7 +75,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
             inititate_import_data_dialog(i,conn)
         # save_button=st.button("UPDATE", key=f"button_{i}",disabled=st.session_state.get(f"update_state_{i}", True))
         current_data=loading_data(conn, i)
-        type_column_order=all_config[i]
+        type_column_order=all_config_schema[i]
         if current_data.empty:
             column_order=type_column_order+sorted(list(set(list(current_data)) - set(type_column_order)),reverse=True)
             current_data = pd.DataFrame(columns=column_order)
