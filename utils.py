@@ -9,7 +9,7 @@ from threading import current_thread
 from contextlib import contextmanager
 from io import StringIO
 
-
+import openpyxl as xl
 import locale
 import logging
 import os
@@ -606,11 +606,10 @@ def inititate_template_dialog(template_directory = "templates",template_name = "
 @st.experimental_dialog("NEW_DATA_SET_DIALOG")
 def inititate_import_data_dialog(type, db_conn):
     st.subheader(':orange[**Upload new {} data set**]'.format(type))
-    with st.form("NewDataInfo"):
-        uploaded_file = st.file_uploader(label = "Choose file excel to import to the data set",type=['xlsx'])
-        sheet_name = st.text_input("Input the sheet name contain data",value="Sheet1")
-        
-        submitted = st.form_submit_button(label= "SAVE DATA SET", type= 'primary')
+    uploaded_file = st.file_uploader(label = "Choose file excel to import to the data set",type=['xlsx'])
+    if uploaded_file is not None:
+        sheet_name = st.selectbox("Select sheet name contain data",xl.load_workbook(uploaded_file).sheetnames)  
+    submitted = st.button(label= "SAVE DATA SET", type= 'primary', disabled=not uploaded_file is not None)
 
     if submitted:
         with st.spinner('Saving new data set '):

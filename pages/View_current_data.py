@@ -1,10 +1,7 @@
 import streamlit as st
-import sys
 import os
 import logging
 from utils import *
-import time 
-import yaml
 from datetime import datetime
 
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
@@ -119,5 +116,3 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                 st.success('Done')
                 st.session_state[f"update_state_{i}_disabled"]=True
                 st.rerun()
-
-    # conn.close()

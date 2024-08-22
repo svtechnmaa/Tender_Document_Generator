@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 from utils import *
-import yaml
 
 def change_update_button_state():
     st.session_state["update_state_variable_disabled"]=False

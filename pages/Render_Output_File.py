@@ -1,10 +1,7 @@
 import streamlit as st
-import sys
 import os
 import logging
 from utils import *
-import time 
-import yaml
 import docxtpl
 
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
