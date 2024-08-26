@@ -458,7 +458,7 @@ def create_default_table(db_path):
                 ID INT NOT NULL,
                 type VARCHAR(25) NOT NULL,
                 key VARCHAR(50) NOT NULL,
-                value VARCHAR(65535) NOT NULL,
+                value VARCHAR(65535),
                 time DATETIME
             ); """
         cur.execute(table)
