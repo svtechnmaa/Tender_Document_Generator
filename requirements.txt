@@ -1,7 +1,8 @@
 docxtpl==0.18.0
-pandas==2.2.2
-PyYAML==6.0.1
+openpyxl==3.1.5
+pandas==2.0.0
+PyYAML==6.0.2
 rarfile==4.2
 streamlit==1.36.0
 streamlit_dynamic_filters==0.1.6
-openpyxl==3.1.2
+streamlit_pdf_viewer==0.0.18

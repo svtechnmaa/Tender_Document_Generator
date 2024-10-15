@@ -1,4 +1,13 @@
+SVTECH_INFO:
+- Ten_nha_thau
+- Dia_chi_nha_thau
+- Dia_chi_VP_HN
+BID_OWNER:
+- Ben_moi_thau
+- Dia_chi_BMT
+- Ten_viet_tat_BMT
 BID_INFO:
+- Form_type
 - Tender
 - E_TBMT
 - Ten_goi_thau
@@ -12,11 +21,3 @@ BID_INFO:
 - Hieu_luc_E_HSDT
 - Chuc_danh
 - Nguoi_ky
-BID_OWNER:
-- Ben_moi_thau
-- Dia_chi_BMT
-- Ten_viet_tat_BMT
-SVTECH_INFO:
-- Ten_nha_thau
-- Dia_chi_nha_thau
-- Dia_chi_VP_HN

@@ -4,7 +4,7 @@ LABEL org.opencontainers.image.source=https://github.com/svtechnmaa/Tender_Docum
 
 # Update and install necessary packages
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends libc6-dev make dpkg-dev git openssh-client \
+    && apt-get install -y --no-install-recommends libc6-dev make dpkg-dev git openssh-client libreoffice-common libreoffice-core libreoffice-writer \
     && apt-get clean all \
     && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
 
@@ -16,7 +16,8 @@ ARG OWNER="svtechnmaa"
 
 ENV OUTPUT_DIR="/opt/Tender_Document_Generator/output"
 ENV DB_DIR="/opt/Tender_Document_Generator/data"
-ENV TEMPLATE_DIR="/opt/Tender_Document_Generator/templates"
+ENV TEMPLATE_SET_DIR="/opt/Tender_Document_Generator/templates_set"
+ENV TEMPLATE_INVENTORY_DIR="/opt/Tender_Document_Generator/templates_inventory"
 
 # Clone the repository
 RUN /usr/bin/git clone --branch $BRANCH https://$git_token@github.com/$OWNER/Tender_Document_Generator.git /opt/Tender_Document_Generator

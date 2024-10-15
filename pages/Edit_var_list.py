@@ -2,9 +2,6 @@ import streamlit as st
 import os
 from utils import *
 
-def change_update_button_state():
-    st.session_state["update_state_variable_disabled"]=False
-
 LOGGER_INIT(log_level=logging.DEBUG,
                       print_log_init = False,
                       shell_output= False) 
@@ -18,11 +15,12 @@ with st_stdout("code",TerminalOutput, cache_data=False), st_stderr("code",Loggin
                                 "input_data_schema.yaml")
                             )
     st.header("VARIABLES MANAGEMENT")
-    update_button= st.popover("UPDATE", disabled=st.session_state.get("update_state_variable_disabled",True))
+    update_button= st.popover("UPDATE")
     current_schema=read_config_yaml(yaml_data_file_path)
     current_schema=pd.DataFrame([(key, value) for key, values in current_schema.items() for value in values], 
                   columns=['Type', 'Variable'])
-    new_schema=st.data_editor(current_schema, num_rows="dynamic",use_container_width = True, on_change=change_update_button_state)
+    current_schema['Type'] = current_schema['Type'].astype(pd.CategoricalDtype(['SVTECH_INFO','BID_OWNER','BID_INFO']))
+    new_schema=st.data_editor(current_schema, num_rows="dynamic",use_container_width = True)
     with update_button:
         ######diff_data: data deleted from old schema, contain updated data
         delete_data=(current_schema.merge(new_schema.drop_duplicates(), on=['Type','Variable'], 
@@ -44,10 +42,3 @@ with st_stdout("code",TerminalOutput, cache_data=False), st_stderr("code",Loggin
                 write_config_yaml(file_path=yaml_data_file_path,data=new_schema)
                 st.session_state['update_state_variable_disabled']=True
                 st.rerun()
-    # update_button=st.button("UPDATE")
-    # current_schema=load_schema_data(yaml_data_file_path)
-    # new_schema=st.data_editor(current_schema, num_rows="dynamic",use_container_width = True,)
-    # if update_button:
-    #     new_schema = new_schema.groupby('Type')['Variable'].apply(list).to_dict()
-        # write_schema_data(yaml_data_file_path,new_schema)
-        # st.rerun()
