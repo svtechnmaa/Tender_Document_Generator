@@ -24,7 +24,8 @@ RUN /usr/bin/git clone --branch $BRANCH https://$git_token@github.com/$OWNER/Ten
 
 # Set the working directory
 WORKDIR /opt/Tender_Document_Generator
-
+RUN mkdir /opt/Tender_Document_Generator/templates_set \
+ && mkdir /opt/Tender_Document_Generator/templates_inventory
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
