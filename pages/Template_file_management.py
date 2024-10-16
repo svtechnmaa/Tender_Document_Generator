@@ -66,25 +66,28 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                     st.markdown(font_awesome_cdn +download_file_button(compress_folder(os.path.join(template_set,template)).getvalue(),'template_{}.zip'.format(template),"<i class='btn-icon fas fa-download'></i>DOWNLOAD_{}".format(template)),unsafe_allow_html=True)
 
     with st.expander("Manage template inventory"):
-        update_button= st.popover("UPDATE", disabled=st.session_state.get("update_state_inventory_disabled",True))
         all_files=pd.DataFrame()
         for t in ['EHSDT','AHSDT','ThauGiay','English']:
             all_files=pd.concat([all_files, pd.DataFrame({'Delete?': False,'Type': t, 'File': dir_element_list(folder_path=os.path.join(template_inventory, t), element_type='file')})])
-        all_files['Preview file']=all_files.apply(lambda x: '/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File']), x['File']), axis=1)
-        table_inventory=st.data_editor(data=all_files, use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["List files", 'Type'], 
-                                       on_change=change_update_button_state, args=("update_state_inventory_disabled",),
-                                       column_config={
-                                           "Preview file": st.column_config.LinkColumn(
-                                               display_text="Open link"
-                                           )
-                                       }) 
+        if all_files.empty:
+            st.data_editor(data=pd.DataFrame(columns=['Delete?','Type','File','Preview file']), use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["File", 'Type','Preview file'])
+        else:
+            update_button= st.popover("UPDATE", disabled=st.session_state.get("update_state_inventory_disabled",True))
+            all_files['Preview file']=all_files.apply(lambda x: '/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File']), x['File']), axis=1)
+            table_inventory=st.data_editor(data=all_files, use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["File", 'Type','Preview file'], 
+                                        on_change=change_update_button_state, args=("update_state_inventory_disabled",),
+                                        column_config={
+                                            "Preview file": st.column_config.LinkColumn(
+                                                display_text="Open link"
+                                            )
+                                        }) 
 
-        with update_button:
-            delete_files=table_inventory.loc[table_inventory['Delete?']==True]
-            st.subheader("Are you ABSOLUTELY SURE you want to delete list files {} from template inventory?".format(', '.join((delete_files['Type'] + '/' + delete_files['File']).tolist())))
-            if st.button("CONFIRM"):
-                for index, row in delete_files.iterrows():
-                    os.remove(os.path.join(template_inventory, row['Type'], row['File']))
-                st.success('Done')
-                st.session_state["update_state_inventory_disabled"]=True
-                st.rerun()
+            with update_button:
+                delete_files=table_inventory.loc[table_inventory['Delete?']==True]
+                st.subheader("Are you ABSOLUTELY SURE you want to delete list files {} from template inventory?".format(', '.join((delete_files['Type'] + '/' + delete_files['File']).tolist())))
+                if st.button("CONFIRM"):
+                    for index, row in delete_files.iterrows():
+                        os.remove(os.path.join(template_inventory, row['Type'], row['File']))
+                    st.success('Done')
+                    st.session_state["update_state_inventory_disabled"]=True
+                    st.rerun()

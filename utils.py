@@ -589,8 +589,8 @@ def init_customer_input_info_form_locked(conn,customer_info_schema = None ):
     # need to do something here to save to selected datastore of choice, SQLite do not work OK so fuurther code has been removed
 
 def create_new_template_set_name(template_path, customer, bid_type):
-    current_template_matches=[name for name in os.listdir(template_path) if os.path.isdir(name) and re.search(r'{}_{}_(\d+)'.format(customer, bid_type), name)]
-    return '{}_{}_{}'.format(customer, bid_type, max([int(re.match(r'{}_{}_(\d+)'.format(customer, bid_type), item)) for item in current_template_matches])+1 if current_template_matches else 0)
+    current_template_matches=[name for name in dir_element_list(folder_path=template_path, element_type='folder') if re.search(r'{}_{}_(\d+)'.format(customer, bid_type), name)]
+    return '{}_{}_{}'.format(customer, bid_type, max([int(re.search(r'{}_{}_(\d+)'.format(customer, bid_type), item).group(1)) for item in current_template_matches])+1 if current_template_matches else 0)
 
 @st.experimental_dialog("NEW_TEMPLATE_SET_DIALOG")
 def inititate_template_dialog(inventory_path, template_path, db_path):
@@ -604,7 +604,7 @@ def inititate_template_dialog(inventory_path, template_path, db_path):
         list_template_set_name=[create_new_template_set_name(template_path, c, template_type) for c in customers]
         st.markdown('<p style="font-size: 12px;">Creating template set {}.</p>'.format(', '.join(list_template_set_name)), unsafe_allow_html=True)
 
-    list_all_files=pd.DataFrame({'Select?': False, 'List files': [os.path.basename(x) for x in glob.glob(os.path.join(inventory_path, template_type, '*.docx'))]})
+    list_all_files=pd.DataFrame({'Select?': False, 'List files': dir_element_list(folder_path=os.path.join(inventory_path, template_type), element_type='file')})
     select_files=st.data_editor(list_all_files, hide_index=True, disabled=["List files"])
     selected_files=select_files.loc[select_files['Select?']==True]['List files'].to_list()
     if selected_files:
@@ -662,7 +662,7 @@ def inititate_upload_template_files_dialog(template_directory = "templates"):
     with st.form("UploadTemplateFiles"):
         template_type = st.selectbox("Select type of template files", BID_TYPE)
         uploaded_files_list = st.file_uploader(label = "Choose files to upload to template inventory",
-                                         accept_multiple_files= True)
+                                         accept_multiple_files= True, type="docx")
         submitted = st.form_submit_button(label= "UPLOAD", type= 'primary')
         if submitted:
             with st.spinner('Uploading template files to template inventory'):
@@ -683,7 +683,7 @@ def inititate_upload_template_files_dialog(template_directory = "templates"):
                 time.sleep(3)
                 st.rerun()
 
-@st.experimental_dialog("RECREAYE_TEMPLATE_SET_DIALOG")
+@st.experimental_dialog("RECREATE_TEMPLATE_SET_DIALOG")
 def inititate_recreate_template_dialog(inventory_path, template_path, db_path, template_name):
     st.subheader(':orange[**Recreate template set {}**]'.format(template_name))
     template_set_dir=os.path.join(template_path, template_name)
