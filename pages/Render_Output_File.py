@@ -32,7 +32,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         st.session_state['context_data_list'] = []
 
     if 'data_state' not in st.session_state:
-        st.session_state['data_state']=False
+        st.session_state['data_state']=True
         
     selected_template_sets = []
     context_data_list = []
@@ -51,9 +51,12 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
             st.header("{} LIST".format(data_type))
             df=loading_data(conn, data_type).drop(columns=['ID', 'type','time'])
             if df.empty:
+                st.session_state['data_state']=False
                 st.write("Data {} is empty. Please provide data in View/Edit current data to apply filters.".format(data_type))
+            elif data_type == "BID_INFO" and df['Form_type'].isnull().all():
+                st.session_state['data_state']=False
+                st.write("No BID_INFO has Form_type value. Please provide Form_type in View/Edit current data to apply filters.".format(data_type))
             else:
-                st.session_state['data_state']=True
                 if data_type == "BID_INFO":
                     dynamic_filters[data_type] = DynamicFilters(df.loc[df['Form_type']==bid_type], filters=['E_TBMT'], filters_name= data_type)
                 elif data_type == "BID_OWNER":
@@ -87,7 +90,6 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         for template_set_selected in selected_template_sets:
             file_list = dir_element_list(os.path.join(template_set,template_set_selected),"file")
             with st.popover("Preview template {}".format(template_set_selected)):
-                # st.write(file_list)
                 list_all_files=pd.DataFrame({'Select?': True, 'List files': file_list})
                 select_files=st.data_editor(list_all_files, hide_index=True, disabled=["List files"], key='select_files_for_template_{}'.format(template_set_selected))
                 list_template_selected+=[os.path.join(template_set,template_set_selected, file) for file in select_files.loc[select_files['Select?']==True]['List files'].to_list()]
@@ -97,11 +99,13 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         if selected_template_files:
             st.markdown('<p style="font-size: 12px;">Selected files {} to render output.</p>'.format(', '.join(selected_template_files)), unsafe_allow_html=True)
         list_template_selected+=[os.path.join(template_inventory,bid_type, file) for file in selected_template_files]
-    
     if st.session_state['data_state']==True and context_data_list and list_template_selected:               
         with st.popover(":cinema: :orange[Preview before render]", use_container_width=True):
-            st.write(['/'.join(file.split('/')[-2:]) for file in list_template_selected])
-            # st.write(selected_template_sets)
+            st.subheader('List template files:')
+            for f in list_template_selected:
+                st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(f, '/'.join(f.split('/')[-2:])), unsafe_allow_html=True)
+            # st.write(['/'.join(file.split('/')[-2:]) for file in list_template_selected])
+            st.subheader('List context data:')
             for context in context_data_list:
                 st.write(context)
         if st.button(":star2: :blue[**RENDER PROJECT FILE**]", use_container_width=True):
@@ -126,4 +130,4 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                         st.markdown(download_file_button(compress_folder(item['output_dir']).getvalue(),'output_{}_{}.zip'.format(item['Ten_viet_tat_BMT'],item['E_TBMT']),"Download output of {} bid {}".format(item['Ten_viet_tat_BMT'], item['E_TBMT'])),unsafe_allow_html=True)
                     with preview_data:
                         for file in dir_element_list(folder_path=item['output_dir'], element_type='file'):
-                            st.markdown('<a href="/Preview_template_file?file={}&type=output" target="_blank">{}</a>'.format(os.path.join(item['output_dir'], file), file), unsafe_allow_html=True)
+                            st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=output" target="_blank">{}</a>'.format(os.path.join(item['output_dir'], file), file), unsafe_allow_html=True)

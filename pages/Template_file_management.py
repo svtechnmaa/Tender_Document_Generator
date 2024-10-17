@@ -49,7 +49,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                 file_list = dir_element_list(os.path.join(template_set,template),"file")
                 st.subheader("Template inside template set {}".format(template))
                 for file in file_list:
-                    st.markdown('<a href="/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(os.path.join(template_set,template, file), file), unsafe_allow_html=True)
+                    st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(os.path.join(template_set,template, file), file), unsafe_allow_html=True)
                 
                 delete_widget, download_widget, recreate_widget = st.columns([1,1,1])
                 with delete_widget:
@@ -73,7 +73,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
             st.data_editor(data=pd.DataFrame(columns=['Delete?','Type','File','Preview file']), use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["File", 'Type','Preview file'])
         else:
             update_button= st.popover("UPDATE", disabled=st.session_state.get("update_state_inventory_disabled",True))
-            all_files['Preview file']=all_files.apply(lambda x: '/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File']), x['File']), axis=1)
+            all_files['Preview file']=all_files.apply(lambda x: '/docxtemplate/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File']), x['File']), axis=1)
             table_inventory=st.data_editor(data=all_files, use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["File", 'Type','Preview file'], 
                                         on_change=change_update_button_state, args=("update_state_inventory_disabled",),
                                         column_config={
