@@ -34,10 +34,10 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
 
     col1, col2= st.columns(2)
     with col1:
-        if st.button(":star2: :orange[**UPLOAD BID FILES**]", use_container_width=True):
+        if st.button(":star2: :orange[**UPLOAD TEMPLATE FILES**]", use_container_width=True):
             inititate_upload_template_files_dialog(template_directory = template_inventory)
     with col2:
-        if st.button(":star2: :orange[**NEW TEMPLATE**]", use_container_width=True):
+        if st.button(":star2: :orange[**NEW TEMPLATE SET**]", use_container_width=True):
             inititate_template_dialog(inventory_path=template_inventory, template_path=template_set, db_path=db_file_path)
 
     with st.expander("Manage template set"):
