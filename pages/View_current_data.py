@@ -53,12 +53,6 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         init_customer_input_info_form_locked( customer_info_schema = input_schema["BID_OWNER"], conn= conn)
     
     ##########LISTING CURRENT DATA##########
-    all_data=pd.read_sql_query("SELECT * FROM 'data'" , conn)
-    all_config_schema=read_config_yaml(os.path.normpath(
-                                os.path.join(
-                                os.environ['DB_DIR'],
-                                "input_data_schema.yaml")
-                            ))
     unique_key_col={'BID_INFO':'E_TBMT','BID_OWNER':'Ten_viet_tat_BMT','SVTECH_INFO':'Ten_nha_thau'}
     for i in ['SVTECH_INFO','BID_OWNER','BID_INFO']:
         st.header(i if 'SVTECH' in i else i+' LIST')
@@ -70,21 +64,18 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         if import_button:
             inititate_import_data_dialog(i,conn)
         current_data=loading_data(conn, i)
-        type_column_order=all_config_schema[i]
         if current_data.empty:
-            column_order=type_column_order
-            current_data = pd.DataFrame(columns=column_order)
+            current_data = pd.DataFrame(columns=input_schema[i])
         else:
-            column_order=type_column_order+sorted(list(set(list(current_data)) - set(type_column_order)),reverse=True)
+            column_order=input_schema[i]+sorted(list(set(list(current_data)) - set(input_schema[i])),reverse=True)
             current_data = current_data.reindex(columns=column_order)
         current_data.insert(loc=0, column='Delete?', value=False)
-        column_order.insert(0, "Delete?")
         if i=='BID_INFO':
             current_data['Form_type'] = current_data['Form_type'].astype(pd.CategoricalDtype(['EHSDT','AHSDT','ThauGiay','English']))
         if i!='SVTECH_INFO':
-            new_data=st.data_editor(key=f"current_data_{i}",data= current_data,use_container_width = True,disabled=["time"], args=(f"update_state_{i}_disabled",),on_change=change_update_button_state, hide_index=True, column_order=column_order, column_config={'ID':None,'type':None,'time':None})
+            new_data=st.data_editor(key=f"current_data_{i}",data= current_data,use_container_width = True,disabled=["time"], args=(f"update_state_{i}_disabled",),on_change=change_update_button_state, hide_index=True, column_config={'ID':None,'type':None,'time':None})
         else:
-            new_data=st.data_editor(key=f"current_data_{i}",data= current_data,use_container_width = True,disabled=["time"], args=(f"update_state_{i}_disabled",),on_change=change_update_button_state, hide_index=True, column_order=column_order, column_config={'ID':None,'type':None,'time':None,'Delete?':None})
+            new_data=st.data_editor(key=f"current_data_{i}",data= current_data,use_container_width = True,disabled=["time"], args=(f"update_state_{i}_disabled",),on_change=change_update_button_state, hide_index=True, column_config={'ID':None,'type':None,'time':None,'Delete?':None})
         with save_button:
             if not current_data.empty:
                 cur = conn.cursor()

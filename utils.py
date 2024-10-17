@@ -8,7 +8,6 @@ from streamlit.runtime.scriptrunner.script_run_context  import SCRIPT_RUN_CONTEX
 from threading import current_thread
 from contextlib import contextmanager
 from io import StringIO
-import glob
 import openpyxl as xl
 import locale
 import logging

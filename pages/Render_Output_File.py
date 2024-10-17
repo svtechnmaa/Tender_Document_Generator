@@ -53,7 +53,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
             if df.empty:
                 st.session_state['data_state']=False
                 st.write("Data {} is empty. Please provide data in View/Edit current data to apply filters.".format(data_type))
-            elif data_type == "BID_INFO" and df['Form_type'].isnull().all():
+            elif data_type == "BID_INFO" and ('Form_type' not in df.columns or df['Form_type'].isnull().all()):
                 st.session_state['data_state']=False
                 st.write("No BID_INFO has Form_type value. Please provide Form_type in View/Edit current data to apply filters.".format(data_type))
             else:
