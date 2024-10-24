@@ -55,8 +55,12 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                     with st.popover(":x: :red[DELETE_{}]".format(template), use_container_width=True):
                         st.subheader("Are you ABSOLUTELY SURE you want to delete this template set {}".format(template))
                         if st.button("Confirm delete {}".format(template)):
-                            [os.remove(f) for f in glob(os.path.join(template_set, template, '*'))]
-                            shutil.rmtree(os.path.join(template_set,template))
+                            try:
+                                shutil.rmtree(os.path.join(template_set,template))
+                                time.sleep(3)
+                                shutil.rmtree(os.path.join(template_set,template))
+                            except Exception as e:
+                                logging.exception("Exeption when delete template set: {}".format(e))
                             st.rerun()
                 with recreate_widget:
                     if st.button(":pencil2: :green[RECREATE_{}]".format(template), use_container_width=True):
