@@ -2,9 +2,8 @@ import streamlit as st
 import os
 import logging
 from utils import *
-import docxtpl
 import shutil
-
+from glob import glob
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
 ## then we send all console stdout to TerminalOutput tab
 ## all stderr data (which include formatted log) to the LogData tab
@@ -56,6 +55,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                     with st.popover(":x: :red[DELETE_{}]".format(template), use_container_width=True):
                         st.subheader("Are you ABSOLUTELY SURE you want to delete this template set {}".format(template))
                         if st.button("Confirm delete {}".format(template)):
+                            [os.remove(f) for f in glob(os.path.join(template_set, template, '*'))]
                             shutil.rmtree(os.path.join(template_set,template))
                             st.rerun()
                 with recreate_widget:
