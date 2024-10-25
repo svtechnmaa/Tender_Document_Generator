@@ -493,6 +493,10 @@ def rename_folder(folder_path='.', old_text='', new_text='', delimiter='_', posi
 def change_update_button_state(t):
     st.session_state[t]=False
 
+def delete_folder_after(folder_path, second):
+    time.sleep(second)
+    shutil.rmtree(folder_path)
+
 def docx_to_pdf(file_path):
     command = ["libreoffice", "--headless", "--convert-to", "pdf", file_path, "--outdir", os.path.dirname(file_path)]
     subprocess.run(command, check=True)
@@ -594,7 +598,6 @@ def create_new_template_set_name(template_path, customer, bid_type):
 @st.experimental_dialog("NEW_TEMPLATE_SET_DIALOG")
 def inititate_template_dialog(inventory_path, template_path, db_path):
     st.subheader(':orange[**Create new template set**]')
-    # with st.form("CreateTemplate"):
     template_type = st.selectbox("Select type of template set", BID_TYPE)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     customers=st.multiselect("Select BID_OWNER", loading_data(conn, 'BID_OWNER')['Ten_viet_tat_BMT'].to_list())

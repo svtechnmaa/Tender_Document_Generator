@@ -3,7 +3,7 @@ import os
 import logging
 from utils import *
 import shutil
-from glob import glob
+import threading
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
 ## then we send all console stdout to TerminalOutput tab
 ## all stderr data (which include formatted log) to the LogData tab
@@ -57,10 +57,10 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                         if st.button("Confirm delete {}".format(template)):
                             try:
                                 shutil.rmtree(os.path.join(template_set,template))
-                                time.sleep(3)
-                                shutil.rmtree(os.path.join(template_set,template))
+                                thread = threading.Thread(target=delete_folder_after, args=(os.path.join(template_set,template),15,))
+                                thread.start()
                             except Exception as e:
-                                logging.exception("Exeption when delete template set: {}".format(e))
+                                logging.exception("Exception when delete template set:: {}".format(e))
                             st.rerun()
                 with recreate_widget:
                     if st.button(":pencil2: :green[RECREATE_{}]".format(template), use_container_width=True):
