@@ -47,33 +47,28 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
     conn = sqlite3.connect(db_file_path)
     ## display and select required data
     with data_selection_col:
-        dynamic_filters = {}
+        all_data={}
+        select_data={}
         for data_type in ["BID_INFO", "BID_OWNER"]:
             st.header("{} LIST".format(data_type))
-            df=loading_data(conn, data_type).drop(columns=['ID', 'type','time'])
-            if df.empty:
+            all_data[data_type]=loading_data(conn, data_type).drop(columns=['ID', 'type','time'])
+            if all_data[data_type].empty:
                 st.session_state['data_state']=False
                 st.write("Data {} is empty. Please provide data in View/Edit current data to apply filters.".format(data_type))
-            elif data_type == "BID_INFO" and ('Form_type' not in df.columns or df['Form_type'].isnull().all()):
+            elif data_type == "BID_INFO" and ('Form_type' not in all_data[data_type].columns or all_data[data_type]['Form_type'].isnull().all()):
                 st.session_state['data_state']=False
                 st.write("No BID_INFO has Form_type value. Please provide Form_type in View/Edit current data to apply filters.".format(data_type))
             else:
                 if data_type == "BID_INFO":
-                    dynamic_filters[data_type] = DynamicFilters(df.loc[df['Form_type']==bid_type], filters=['E_TBMT'], filters_name= data_type)
+                    select_data[data_type]=st.multiselect("Select E_TBMT", sorted(all_data[data_type].loc[all_data[data_type]['Form_type']==bid_type]['E_TBMT'].unique()))
                 elif data_type == "BID_OWNER":
-                    dynamic_filters[data_type] = DynamicFilters(df, filters=['Ten_viet_tat_BMT'], filters_name= data_type)
-                dynamic_filters[data_type].display_filters()
+                    select_data[data_type]=st.multiselect("Select Ten_viet_tat_BMT", sorted(all_data[data_type]['Ten_viet_tat_BMT'].unique()))
 
     ####Generate context data
-    if st.session_state['data_state']==True and st.session_state['BID_INFO']['E_TBMT'] and st.session_state['BID_OWNER']['Ten_viet_tat_BMT']:
-        for selected_bid in  dynamic_filters["BID_INFO"].filter_df().to_dict('records'):
-            for selected_owner in dynamic_filters["BID_OWNER"].filter_df().to_dict('records'):
-                context = dict()
-                for key,value in selected_bid.items():
-                    context[key] = value
-                for key,value in selected_owner.items():
-                    context[key] = value
-                context_data_list.append(context)
+    if st.session_state['data_state']==True and select_data['BID_INFO'] and select_data['BID_OWNER']:
+        selected_bid=all_data['BID_INFO'].loc[all_data['BID_INFO']['E_TBMT'].isin(select_data['BID_INFO'])]
+        selected_owner=all_data['BID_OWNER'].loc[all_data['BID_OWNER']['Ten_viet_tat_BMT'].isin(select_data['BID_OWNER'])]
+        context_data_list=selected_bid.assign(key=1).merge(selected_owner.assign(key=1), on='key').drop('key', axis=1).to_dict('records')
 
     ##########Template column management
     template_set = os.path.normpath(os.environ['TEMPLATE_SET_DIR'])
@@ -97,6 +92,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         if selected_template_files:
             st.markdown('<p style="font-size: 12px;">Selected files {} to render output.</p>'.format(', '.join(selected_template_files)), unsafe_allow_html=True)
             list_template_selected+=[os.path.join(template_inventory,bid_type, file) for file in selected_template_files]
+
     if st.session_state['data_state']==True and context_data_list and list_template_selected:               
         with st.popover(":cinema: :orange[Preview before render]", use_container_width=True):
             st.subheader('List template files:')
