@@ -5,7 +5,7 @@ from utils import *
 from docxtpl import DocxTemplate
 from streamlit_dynamic_filters import DynamicFilters
 import pandas as pd
-
+from glob import glob
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
 ## then we send all console stdout to TerminalOutput tab
 ## all stderr data (which include formatted log) to the LogData tab
@@ -33,10 +33,11 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
 
     if 'data_state' not in st.session_state:
         st.session_state['data_state']=True
-        
+
     selected_template_sets = []
     context_data_list = []
-
+    list_template_selected=[]
+    
     ### open data file
     db_file_path = os.path.normpath(
                                 os.path.join(
@@ -65,8 +66,6 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
 
     ####Generate context data
     if st.session_state['data_state']==True and st.session_state['BID_INFO']['E_TBMT'] and st.session_state['BID_OWNER']['Ten_viet_tat_BMT']:
-        # for selected_bid in st.session_state['BID_INFO']['E_TBMT']:
-        #     for selected_owner in st.session_state['BID_OWNER']['Ten_viet_tat_BMT']:
         for selected_bid in  dynamic_filters["BID_INFO"].filter_df().to_dict('records'):
             for selected_owner in dynamic_filters["BID_OWNER"].filter_df().to_dict('records'):
                 context = dict()
@@ -80,7 +79,6 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
     template_set = os.path.normpath(os.environ['TEMPLATE_SET_DIR'])
     template_inventory=os.path.normpath(os.environ['TEMPLATE_INVENTORY_DIR'])
     with template_selection_col:
-        list_template_selected=[]
         st.header("TEMPLATE SET LIST")
         if context_data_list:
             selected_template_sets = folder_selector(folder_path = template_set, regex=r'({})_{}.*'.format('|'.join([item['Ten_viet_tat_BMT'] for item in context_data_list]),bid_type))
@@ -98,13 +96,12 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         selected_template_files = file_selector(folder_path = os.path.join(template_inventory, bid_type))
         if selected_template_files:
             st.markdown('<p style="font-size: 12px;">Selected files {} to render output.</p>'.format(', '.join(selected_template_files)), unsafe_allow_html=True)
-        list_template_selected+=[os.path.join(template_inventory,bid_type, file) for file in selected_template_files]
+            list_template_selected+=[os.path.join(template_inventory,bid_type, file) for file in selected_template_files]
     if st.session_state['data_state']==True and context_data_list and list_template_selected:               
         with st.popover(":cinema: :orange[Preview before render]", use_container_width=True):
             st.subheader('List template files:')
             for f in list_template_selected:
                 st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(f, '/'.join(f.split('/')[-2:])), unsafe_allow_html=True)
-            # st.write(['/'.join(file.split('/')[-2:]) for file in list_template_selected])
             st.subheader('List context data:')
             for context in context_data_list:
                 st.write(context)
@@ -113,7 +110,11 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                 list_output_dir=[]
                 for context in context_data_list:
                     st.write("Processing data {}...".format(context['E_TBMT']))
-                    output_dir = CREATE_EXPORT_DIR(os.path.join(os.environ['OUTPUT_DIR'],context['Ten_viet_tat_BMT'], context['E_TBMT']) )
+                    output_dir=os.path.join(os.environ['OUTPUT_DIR'],context['Ten_viet_tat_BMT'], context['E_TBMT'])
+                    if os.path.isdir(output_dir):
+                        [os.remove(file) for file in glob(os.path.join(output_dir,'*'))]
+                    else:
+                        CREATE_EXPORT_DIR(output_dir)
                     st.write("Creating folder {}...".format(output_dir))
                     for template_file in list_template_selected:
                         template_object = DocxTemplate(template_file)
