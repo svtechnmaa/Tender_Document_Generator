@@ -602,26 +602,28 @@ def inititate_template_dialog(inventory_path, template_path, db_path):
     conn = sqlite3.connect(db_path, check_same_thread=False)
     customers=st.multiselect("Select BID_OWNER", loading_data(conn, 'BID_OWNER')['Ten_viet_tat_BMT'].to_list())
     CREATE_EXPORT_DIR(template_path)
+    
     if customers:
         list_template_set_name=[create_new_template_set_name(template_path, c, template_type) for c in customers]
         st.markdown('<p style="font-size: 12px;">Creating template set {}.</p>'.format(', '.join(list_template_set_name)), unsafe_allow_html=True)
-
     list_all_files=pd.DataFrame({'Select?': False, 'List files': dir_element_list(folder_path=os.path.join(inventory_path, template_type), element_type='file')})
     select_files=st.data_editor(list_all_files, hide_index=True, disabled=["List files"])
     selected_files=select_files.loc[select_files['Select?']==True]['List files'].to_list()
     if selected_files:
         st.markdown('<p style="font-size: 12px;">You selected files {} to create template set.</p>'.format(', '.join(selected_files)), unsafe_allow_html=True)
-    submitted = st.button(label= "SAVE TEMPLATE SET", type= 'primary')
-    if submitted:
-        with st.spinner('Creating template set'):
-            for template_set in list_template_set_name:
-                template_set_dir=os.path.join(template_path, template_set)
-                CREATE_EXPORT_DIR(template_set_dir)
-                for file in selected_files:
-                    shutil.copyfile(os.path.join(inventory_path, template_type, file), os.path.join(template_set_dir, file))
-            st.success('Done')
-            time.sleep(3)
-            st.rerun()
+        
+    if customers and selected_files:
+        submitted = st.button(label= "SAVE TEMPLATE SET", type= 'primary')
+        if submitted:
+            with st.spinner('Creating template set'):
+                for template_set in list_template_set_name:
+                    template_set_dir=os.path.join(template_path, template_set)
+                    CREATE_EXPORT_DIR(template_set_dir)
+                    for file in selected_files:
+                        shutil.copyfile(os.path.join(inventory_path, template_type, file), os.path.join(template_set_dir, file))
+                st.success('Done')
+                time.sleep(3)
+                st.rerun()
     
 @st.experimental_dialog("NEW_DATA_SET_DIALOG")
 def inititate_import_data_dialog(type, db_conn):
