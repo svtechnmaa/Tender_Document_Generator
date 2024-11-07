@@ -4,5 +4,5 @@ pandas==2.2.2
 PyYAML==6.0.1
 rarfile==4.2
 streamlit==1.36.0
-streamlit_dynamic_filters==0.1.6
 streamlit_pdf_viewer==0.0.18
+streamlit_tags==1.2.8

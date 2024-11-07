@@ -3,7 +3,6 @@ import os
 import logging
 from utils import *
 from docxtpl import DocxTemplate
-from streamlit_dynamic_filters import DynamicFilters
 import pandas as pd
 from glob import glob
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
