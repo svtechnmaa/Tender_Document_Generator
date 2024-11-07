@@ -27,7 +27,6 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                                 os.environ['DB_DIR'],
                                 "database.sqlite")
                             )
-    
     if 'update_state_inventory_disabled' not in st.session_state:
         st.session_state['update_state_inventory_disabled'] = True
 
@@ -72,26 +71,50 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
     with st.expander("Manage template inventory"):
         all_files=pd.DataFrame()
         for t in ['EHSDT','AHSDT','ThauGiay','English']:
+            CREATE_EXPORT_DIR(os.path.join(template_inventory, t))
             all_files=pd.concat([all_files, pd.DataFrame({'Delete?': False,'Type': t, 'File': dir_element_list(folder_path=os.path.join(template_inventory, t), element_type='file')})])
         if all_files.empty:
             st.data_editor(data=pd.DataFrame(columns=['Delete?','Type','File','Preview file']), use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["File", 'Type','Preview file'])
         else:
+            all_files.reset_index(drop=True, inplace=True)
             update_button= st.popover("UPDATE", disabled=st.session_state.get("update_state_inventory_disabled",True))
-            all_files['Preview file']=all_files.apply(lambda x: '/docxtemplate/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File']), x['File']), axis=1)
-            table_inventory=st.data_editor(data=all_files, use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=["File", 'Type','Preview file'], 
+            all_files['Preview']=all_files.apply(lambda x: '/docxtemplate/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File'])), axis=1)
+            all_files['Type'] = all_files['Type'].astype(pd.CategoricalDtype(['EHSDT','AHSDT','ThauGiay','English']))
+            table_inventory=st.data_editor(data=all_files, use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=['Preview'], 
                                         on_change=change_update_button_state, args=("update_state_inventory_disabled",),
                                         column_config={
-                                            "Preview file": st.column_config.LinkColumn(
+                                            "Preview": st.column_config.LinkColumn(
                                                 display_text="Open link"
                                             )
                                         }) 
 
             with update_button:
                 delete_files=table_inventory.loc[table_inventory['Delete?']==True]
-                st.subheader("Are you ABSOLUTELY SURE you want to delete list files {} from template inventory?".format(', '.join((delete_files['Type'] + '/' + delete_files['File']).tolist())))
-                if st.button("CONFIRM"):
-                    for index, row in delete_files.iterrows():
-                        os.remove(os.path.join(template_inventory, row['Type'], row['File']))
-                    st.success('Done')
-                    st.session_state["update_state_inventory_disabled"]=True
-                    st.rerun()
+                editable_columns = ['File', 'Type']
+                changed_files=pd.DataFrame([(*[all_files.at[i,col] for col in editable_columns], *[row[col] for col in editable_columns]) for i, row in table_inventory.iterrows() if (any(all_files.at[i, col] != row[col] for col in editable_columns) and row['Delete?']==False)], columns=[f'old_{col}' for col in editable_columns]+[f'new_{col}' for col in editable_columns])
+                
+                ###check duplicate for rename file###
+                grouped_changed_files = changed_files.groupby('new_Type')
+                duplicate_files=[]
+                for new_type, sub_df in grouped_changed_files:
+                    current_files_in_dir=dir_element_list(folder_path=os.path.join(template_inventory,new_type), element_type='file')
+                    duplicate_files+=[new_type+'/'+f for f in list(set(sub_df['new_File'].unique()) & set(current_files_in_dir))]
+                if duplicate_files:
+                    st.error('Duplicate. List file {} already exist in template inventory.'.format(duplicate_files), icon="🚨")
+                else:
+                    if not delete_files.empty and not changed_files.empty:
+                        st.subheader("Are you ABSOLUTELY SURE you want to template inventory delete {} and update {} to {}".format(', '.join(delete_files['File'].to_list()),', '.join((changed_files['old_Type'] + '+' + changed_files['old_File']).tolist()), ', '.join((changed_files['new_Type'] + '+' + changed_files['new_File']).tolist())))
+                    elif not delete_files.empty:
+                        st.subheader("Are you ABSOLUTELY SURE you want to template inventory delete {}".format(', '.join(delete_files['File'].to_list())))
+                    elif not changed_files.empty:
+                        st.subheader("Are you ABSOLUTELY SURE you want to template inventory update {} to {}".format(', '.join((changed_files['old_Type'] + '/' + changed_files['old_File']).tolist()), ', '.join((changed_files['new_Type'] + '/' + changed_files['new_File']).tolist())))
+                    
+                    if st.button("CONFIRM"):
+                        if not delete_files.empty:
+                            [os.remove(os.path.join(template_inventory, row['Type'], row['File'])) for index, row in delete_files.iterrows()]
+                        if not changed_files.empty:
+                            [shutil.move(os.path.join(template_inventory, row['old_Type'], row['old_File']), os.path.join(template_inventory, row['new_Type'], row['new_File'])) for index, row in changed_files.iterrows()]
+                        st.success('Done')
+                        st.session_state["update_state_inventory_disabled"]=True
+                        time.sleep(1)
+                        st.rerun()

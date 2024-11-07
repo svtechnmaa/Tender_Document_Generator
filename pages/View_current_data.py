@@ -3,7 +3,7 @@ import os
 import logging
 from utils import *
 from datetime import datetime
-
+from glob import glob
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
 ## then we send all console stdout to TerminalOutput tab
 ## all stderr data (which include formatted log) to the LogData tab
@@ -96,17 +96,27 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                     if not delete_data.empty:
                         cur.execute('DELETE FROM data WHERE id IN ({})'.format(','.join(['?'] * delete_data.shape[0])),delete_data['ID'].to_list())
                         conn.commit()
+                        if i=='BID_OWNER':
+                            for customer in list(delete_data[unique_key_col['BID_OWNER']].unique()):
+                                folders=glob(os.path.join(template_set,f'{customer}_*_*/'))
+                                for f in folders:
+                                    try:
+                                        shutil.rmtree(f)
+                                        thread = threading.Thread(target=delete_folder_after, args=(f,15,))
+                                        thread.start()
+                                    except Exception as e:
+                                        logging.exception("Exception when delete template set {}:: {}".format(f, e))
                     if not diff_data.empty:
                         cur.execute('DELETE FROM data WHERE id IN ({})'.format(','.join(['?'] * diff_data.shape[0])),diff_data['ID'].to_list())
                         conn.commit()
                         diff_data_flattern=diff_data.drop(columns=['Delete?']).melt(id_vars=['ID', 'type','time']).reset_index().drop(columns=['index'])
                         diff_data_flattern['time']=datetime.now()
                         diff_data_flattern.to_sql(name='data', con=conn, if_exists='append', index=False)
-                    if i=='BID_OWNER':
-                        diff_data['old_{}'.format(unique_key_col[i])]=diff_data['ID'].map(current_data.set_index('ID')[unique_key_col[i]])
-                        changed_TVT_BMT=diff_data.loc[diff_data['old_{}'.format(unique_key_col[i])]!=diff_data[unique_key_col[i]]]
-                        for index, row in changed_TVT_BMT.iterrows():
-                            rename_folder(folder_path=template_set, old_text=row['old_{}'.format(unique_key_col[i])], new_text=row[unique_key_col[i]], delimiter='_', position=0)
+                        if i=='BID_OWNER':
+                            diff_data['old_{}'.format(unique_key_col[i])]=diff_data['ID'].map(current_data.set_index('ID')[unique_key_col[i]])
+                            changed_TVT_BMT=diff_data.loc[diff_data['old_{}'.format(unique_key_col[i])]!=diff_data[unique_key_col[i]]]
+                            for index, row in changed_TVT_BMT.iterrows():
+                                rename_folder(folder_path=template_set, old_text=row['old_{}'.format(unique_key_col[i])], new_text=row[unique_key_col[i]], delimiter='_', position=0)
                     cur.close()
                     st.success('Done')
                     st.session_state[f"update_state_{i}_disabled"]=True

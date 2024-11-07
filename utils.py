@@ -4,6 +4,7 @@ import yaml
 import logging
 import shutil
 import streamlit as st
+from streamlit_tags import st_tags
 from streamlit.runtime.scriptrunner.script_run_context  import SCRIPT_RUN_CONTEXT_ATTR_NAME
 from threading import current_thread
 from contextlib import contextmanager
@@ -21,6 +22,7 @@ import json
 import sqlite3
 from datetime import datetime
 import subprocess
+from pathlib import Path
 OK = 0
 WARNING = 1
 CRITICAL = 2
@@ -435,7 +437,7 @@ def dir_element_list(folder_path='.', element_type = "all" ):
             elif os.path.isfile(os.path.join(folder_path, item)) and element_type.lower() == "file":
                 element_names.append(item)
 
-    return element_names
+    return sorted(element_names)
 
 def folder_selector(folder_path='.', regex='.*'):
     folder_names = dir_element_list (folder_path = folder_path, element_type="folder")
@@ -483,7 +485,7 @@ def get_next_id(cursor):
     return id
 
 def rename_folder(folder_path='.', old_text='', new_text='', delimiter='_', position=0):
-    directory_element_names = os.listdir(folder_path)
+    directory_element_names = [d for d in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, d))]
     for item in directory_element_names:
         if item.split(delimiter)[position].lower()==old_text.lower():
             new_name=item.split(delimiter)
@@ -600,9 +602,10 @@ def inititate_template_dialog(inventory_path, template_path, db_path):
     st.subheader(':orange[**Create new template set**]')
     template_type = st.selectbox("Select type of template set", BID_TYPE)
     conn = sqlite3.connect(db_path, check_same_thread=False)
-    customers=st.multiselect("Select BID_OWNER", loading_data(conn, 'BID_OWNER')['Ten_viet_tat_BMT'].to_list())
+    current_customers=loading_data(conn, 'BID_OWNER')['Ten_viet_tat_BMT'].to_list()
+    customers= st_tags(label='Select BID_OWNER',text='Press enter to add more', suggestions=current_customers)
+    # customers=st.multiselect("Select BID_OWNER", loading_data(conn, 'BID_OWNER')['Ten_viet_tat_BMT'].to_list())
     CREATE_EXPORT_DIR(template_path)
-    
     if customers:
         list_template_set_name=[create_new_template_set_name(template_path, c, template_type) for c in customers]
         st.markdown('<p style="font-size: 12px;">Creating template set {}.</p>'.format(', '.join(list_template_set_name)), unsafe_allow_html=True)
@@ -616,6 +619,20 @@ def inititate_template_dialog(inventory_path, template_path, db_path):
         submitted = st.button(label= "SAVE TEMPLATE SET", type= 'primary')
         if submitted:
             with st.spinner('Creating template set'):
+                new_customers=list(set(customers) - set(current_customers))
+                if new_customers:
+                    new_customers_df=pd.DataFrame({
+                        'type': ['BID_OWNER'] * len(new_customers),   # Assign 'BID_OWNER' to all rows
+                        'key': ['Ten_viet_tat_BMT'] * len(new_customers),  # Assign 'Ten_viet_tat_BMT' to all rows
+                        'value': new_customers,  # Assign values from the provided list
+                        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Assign the current timestamp (or you could generate different timestamps if needed)
+                    })
+                    cur=conn.cursor()
+                    id=get_next_id(cur)
+                    cur.close()
+                    new_customers_df.insert(0, 'ID', range(id, id + len(new_customers)))
+                    st.write(new_customers_df)
+                    new_customers_df.to_sql(name='data', con=conn, if_exists='append', index=False)
                 for template_set in list_template_set_name:
                     template_set_dir=os.path.join(template_path, template_set)
                     CREATE_EXPORT_DIR(template_set_dir)
@@ -660,32 +677,43 @@ def inititate_import_data_dialog(type, db_conn):
             st.success('Done')
             st.rerun()
 
+def replace_duplicate_template_file(list_filename, folder):
+    current_all_files=[Path(f).stem for f in dir_element_list(folder_path=folder, element_type='file')]
+    match_files={f: [o_f for o_f in current_all_files if re.match(r'^{}(_\d+)?$'.format(f),o_f)] for f in list_filename}
+    match_files = {k: v for k, v in match_files.items() if v and k in v}
+    duplicated_file=pd.DataFrame()
+    if match_files:
+        duplicated_file=pd.DataFrame([{'file': k,'newname':k+'_'+str(max([int(re.search(r'{}_(\d+)'.format(k), f).group(1)) if re.search(r'{}_(\d+)'.format(k), f) else 0 for f in v])+1) if len(v)>1 else k+'_1'} for k, v in match_files.items()])
+    return duplicated_file
+
 @st.experimental_dialog("UPLOAD_TEMPLATE_FILES_DIALOG")
-def inititate_upload_template_files_dialog(template_directory = "templates"):
+def inititate_upload_template_files_dialog(template_directory = "templates", ):
     st.subheader(':orange[**Upload template files**]')
-    with st.form("UploadTemplateFiles"):
-        template_type = st.selectbox("Select type of template files", BID_TYPE)
-        uploaded_files_list = st.file_uploader(label = "Choose files to upload to template inventory",
-                                         accept_multiple_files= True, type="docx")
-        submitted = st.form_submit_button(label= "UPLOAD", type= 'primary')
-        if submitted:
-            with st.spinner('Uploading template files to template inventory'):
-                saving_dir = os.path.normpath(
-                            os.path.join(
-                                template_directory,
-                                template_type)
-                             )
-                CREATE_EXPORT_DIR(saving_dir)
-                for uploaded_file in uploaded_files_list:
-                    bytes_data = uploaded_file.getvalue()
-                    with open(os.path.join(os.path.abspath(saving_dir),
-                                                            uploaded_file.name)
-                                , 'wb') as f: 
-                        f.write(bytes_data)
-                st.write(os.listdir(saving_dir))
-                st.success('Done')
-                time.sleep(3)
-                st.rerun()
+    template_type = st.selectbox("Select type of template files", BID_TYPE)
+    uploaded_files_list = st.file_uploader(label = "Choose files to upload to template inventory",
+                                        accept_multiple_files= True, type="docx")
+    if uploaded_files_list:
+        change_update_button_state('update_state_template_upload_disabled')
+        run_time=str(pd.to_datetime(datetime.now()).strftime('%Y%m%d_%H%M%S'))
+        st.write('<p style="color:Red; font-size: 14px;">Upload list template file {}</p>'.format([f'{Path(f.name).stem}-{run_time}.docx' for f in uploaded_files_list]), unsafe_allow_html=True)
+
+    submitted=st.button("UPLOAD", disabled=st.session_state.get('update_state_template_upload_disabled',True))
+    if submitted:
+        with st.spinner('Uploading template files to template inventory'):
+            saving_dir = os.path.normpath(
+                        os.path.join(
+                            template_directory,
+                            template_type)
+                        )
+            CREATE_EXPORT_DIR(saving_dir)
+            for uploaded_file in uploaded_files_list:
+                bytes_data = uploaded_file.getvalue()
+                with open(os.path.join(os.path.abspath(saving_dir), f'{Path(uploaded_file.name).stem}-{run_time}.docx') , 'wb') as f: 
+                    f.write(bytes_data)
+            st.write(os.listdir(saving_dir))
+            st.success('Done')
+            time.sleep(3)
+            st.rerun()
 
 @st.experimental_dialog("RECREATE_TEMPLATE_SET_DIALOG")
 def inititate_recreate_template_dialog(inventory_path, template_path, db_path, template_name):

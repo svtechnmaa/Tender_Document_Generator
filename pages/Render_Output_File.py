@@ -23,7 +23,7 @@ with st.sidebar:
 with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",LoggingOutput, cache_data=True):
     st.header("FORM TYPE")
     bid_type = st.selectbox("Select form type", ['EHSDT','AHSDT','ThauGiay','English'])
-    template_selection_col, data_selection_col = st.columns([3, 3])
+    data_selection_col, template_selection_col = st.columns([3, 3])
 
     if 'selected_template_sets' not in st.session_state:
         st.session_state['selected_template_sets'] = []
