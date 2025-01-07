@@ -5,6 +5,7 @@ from utils import *
 from docxtpl import DocxTemplate
 import pandas as pd
 from glob import glob
+import urllib.parse
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
 ## then we send all console stdout to TerminalOutput tab
 ## all stderr data (which include formatted log) to the LogData tab
@@ -96,7 +97,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         with st.popover(":cinema: :orange[Preview before render]", use_container_width=True):
             st.subheader('List template files:')
             for f in list_template_selected:
-                st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(f, '/'.join(f.split('/')[-2:])), unsafe_allow_html=True)
+                st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(urllib.parse.quote(f), '/'.join(f.split('/')[-2:])), unsafe_allow_html=True)
             st.subheader('List context data:')
             for context in context_data_list:
                 st.write(context)
@@ -126,4 +127,4 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                         st.markdown(download_file_button(compress_folder(item['output_dir']).getvalue(),'output_{}_{}.zip'.format(item['Ten_viet_tat_BMT'],item['E_TBMT']),"Download output of {} bid {}".format(item['Ten_viet_tat_BMT'], item['E_TBMT'])),unsafe_allow_html=True)
                     with preview_data:
                         for file in dir_element_list(folder_path=item['output_dir'], element_type='file'):
-                            st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=output" target="_blank">{}</a>'.format(os.path.join(item['output_dir'], file), file), unsafe_allow_html=True)
+                            st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=output" target="_blank">{}</a>'.format(urllib.parse.quote(os.path.join(item['output_dir'], file)),file), unsafe_allow_html=True)

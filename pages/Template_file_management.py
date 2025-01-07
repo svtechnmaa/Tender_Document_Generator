@@ -3,6 +3,7 @@ import os
 import logging
 from utils import *
 import shutil
+import urllib.parse
 import threading
 ## EXPLAIN: setting shell_output = False will create a default log Streamhandler, which by default send all   all Python log to stderr
 ## then we send all console stdout to TerminalOutput tab
@@ -47,7 +48,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
                 file_list = dir_element_list(os.path.join(template_set,template),"file")
                 st.subheader("Template inside template set {}".format(template))
                 for file in file_list:
-                    st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(os.path.join(template_set,template, file), file), unsafe_allow_html=True)
+                    st.markdown('<a href="/docxtemplate/Preview_template_file?file={}&type=template" target="_blank">{}</a>'.format(urllib.parse.quote(os.path.join(template_set,template, file)), file), unsafe_allow_html=True)
                 
                 delete_widget, download_widget, recreate_widget = st.columns([1,1,1])
                 with delete_widget:
@@ -78,7 +79,7 @@ with st_stdout("code",TerminalOutput, cache_data=True), st_stderr("code",Logging
         else:
             all_files.reset_index(drop=True, inplace=True)
             update_button= st.popover("UPDATE", disabled=st.session_state.get("update_state_inventory_disabled",True))
-            all_files['Preview']=all_files.apply(lambda x: '/docxtemplate/Preview_template_file?file={}&type=template'.format(os.path.join(template_inventory, x['Type'], x['File'])), axis=1)
+            all_files['Preview']=all_files.apply(lambda x: '/docxtemplate/Preview_template_file?file={}&type=template'.format(urllib.parse.quote(os.path.join(template_inventory, x['Type'], x['File']))), axis=1)
             all_files['Type'] = all_files['Type'].astype(pd.CategoricalDtype(['EHSDT','AHSDT','ThauGiay','English']))
             table_inventory=st.data_editor(data=all_files, use_container_width = True, key='manage_template_inventory',hide_index=True, disabled=['Preview'], 
                                         on_change=change_update_button_state, args=("update_state_inventory_disabled",),
