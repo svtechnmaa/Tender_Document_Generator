@@ -36,16 +36,18 @@ jobs:
     - name: Check container status
       run: docker inspect tender-docxtemplate-app
 
+    - name: Setup Python
+      uses: actions/setup-python@v5.3.0
+      with:
+        python-version: "3.13"
+
     - name: Run Robot Framework tests
       run: |
+        echo "##[command]pip install git+https://github.com/robotframework/SeleniumLibrary.git"
         pip install git+https://github.com/robotframework/SeleniumLibrary.git
-        wget --no-verbose -O /tmp/chrome.deb https://mirror.cs.uchicago.edu/google-chrome/pool/main/g/google-chrome-stable/google-chrome-stable_120.0.6099.71-1_amd64.deb
-        sudo apt install -y --allow-downgrades /tmp/chrome.deb
-        rm /tmp/chrome.deb
-        wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/119.0.6045.105/linux64/chromedriver-linux64.zip
-        unzip chromedriver-linux64.zip
-        sudo cp chromedriver-linux64/chromedriver /usr/local/bin/
+        echo "##[command]robot tests/"
         robot tests/
+        
     - name: Stop and remove container
       if: always()
       run: docker rm -f tender-docxtemplate-app
