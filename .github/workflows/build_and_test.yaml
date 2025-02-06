@@ -48,6 +48,13 @@ jobs:
         echo "##[command]robot tests/"
         robot tests/
         
+    - name: 'Upload Artifact'
+      uses: actions/upload-artifact@v4.6.0
+      with:
+        name: robot-test-report
+        path: /home/runner/_work/Tender_Document_Generator/Tender_Document_Generator/report.html
+        retention-days: 5
+        
     - name: Stop and remove container
       if: always()
       run: docker rm -f tender-docxtemplate-app
