@@ -3,7 +3,7 @@ name: Build and Test Tender Document Generator
 on:
   push:
     branches:
-      - main
+      - test
   pull_request:
     branches:
       - main
@@ -61,10 +61,11 @@ jobs:
         password: '${{ secrets.GITHUB_TOKEN }}'
     - name: Push image to GitHub Container Registry
       run: |
-        docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:v1.${{ github.run_number }}
-        docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:latest
-        docker push ghcr.io/${{ env.REPO }}:v1.${{ github.run_number }}
-        docker push ghcr.io/${{ env.REPO }}:latest
+        echo "Test push image"
+        #docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:v1.${{ github.run_number }}
+        #docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:latest
+        #docker push ghcr.io/${{ env.REPO }}:v1.${{ github.run_number }}
+        #docker push ghcr.io/${{ env.REPO }}:latest
 
     - name: Update image version in helm chart
       run: |
