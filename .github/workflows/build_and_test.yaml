@@ -10,7 +10,7 @@ on:
 
 jobs:
   build_run_test:
-    runs-on: ubuntu-latest
+    runs-on: robot-dind
     permissions:
       contents: read
       packages: write
