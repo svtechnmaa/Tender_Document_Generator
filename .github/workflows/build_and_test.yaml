@@ -8,9 +8,12 @@ on:
     branches:
       - main
 
-jobs:
-  build_run_test:
-    runs-on: robot-dind
+env:
+  IMAGE_TAG: 'v1.${{ github.run_number }}'
+
+jobs:  
+  build:
+    runs-on: ubuntu-dind
     permissions:
       contents: read
       packages: write
@@ -26,43 +29,22 @@ jobs:
         key: ${{ runner.os }}-buildx-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-buildx-
+
     - name: Build Docker image
       run: docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t tender-docxtemplate-app .
-    - name: Run Tender app
-      run: |
-        # docker run -d --name tender-docxtemplate-app -p 8503:8503 hiennnnguyen/docxtemplate:version3
-        docker run -d --name tender-docxtemplate-app -p 8503:8503 tender-docxtemplate-app
-        sleep 10  # Give the container some time to start
-    - name: Check container status
-      run: docker inspect tender-docxtemplate-app
 
-    - name: Setup Python
-      uses: actions/setup-python@v5.3.0
+    - id: run_and_check_container_status
+      name: Run Tender app
+      uses: ./.github/actions/run_docker_container
       with:
-        python-version: "3.13"
-        
-    - name: Run Robot Framework tests
-      run: |
-        echo "##[command]pip install git+https://github.com/robotframework/SeleniumLibrary.git"
-        pip install git+https://github.com/robotframework/SeleniumLibrary.git
-        echo "##[command]robot tests/"
-        robot tests/
-
-    - name: 'Upload Artifact'
-      uses: actions/upload-artifact@v4.6.0
-      with:
-        name: robot-test-report
-        path: /home/runner/_work/Tender_Document_Generator/Tender_Document_Generator/report.html
-        retention-days: 5
-        
-    - name: Stop and remove container
-      if: always()
-      run: docker rm -f tender-docxtemplate-app
+        imageName: 'tender-docxtemplate-app'
+        containerName: 'tender-docxtemplate-app'
+        containerMappingPort: '8503:8503'
 
     - name: Downcase REPO
       run: |
         echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
-        
+
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v2
       with:
@@ -70,25 +52,83 @@ jobs:
         username: '${{ github.repository_owner }}'
         password: '${{ secrets.GITHUB_TOKEN }}'
         
+
     - name: Push image to GitHub Container Registry
       run: |
-        docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:v1.${{ github.run_number }}
-        docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:latest
-        docker push ghcr.io/${{ env.REPO }}:v1.${{ github.run_number }}
-        docker push ghcr.io/${{ env.REPO }}:latest
+        docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+        docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
-    - name: Update image version in helm chart
-      run: |
-        echo "The JOB_No is ${{ github.run_number }}"
-        echo "GitHub Actions is not allowed to push commits to the repo, so we can't do it here now."
-        # Nextstep to push
-        # git config --global user.name "svtechnmaa"
-        # git config --global user.email "nmaa@svtech.com.vn"
-        # git clone -b feature/streamlit https://github.com/svtechnmaa/charts.git --depth=1 --single-branch
-        # cd charts/
-        # sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"v1.${{ github.run_number }}"'/}' kubernetes/docxtemplate/values.yaml
-        # git add .
-        # git commit -m "no-ci: Update docxtemplate image version"
-        # git remote set-url origin https://svtechnmaa:${{ secrets.GITHUB_TOKEN }}@github.com/svtechnmaa/charts.git
-        # git push origin feature/streamlit
-    
+  test: 
+    needs: build
+    runs-on: robot-dind
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Downcase REPO
+        run: |
+          echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: '${{ github.repository_owner }}'
+          password: '${{ secrets.GITHUB_TOKEN }}'
+          
+      - name: Pull image from GitHub Container Registry
+        run: |
+          docker pull ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+
+      - id: run_and_check_container_status
+        name: Run Tender app
+        uses: ./.github/actions/run_docker_container
+        with:
+          imageName: 'ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}'
+          containerName: 'tender-docxtemplate-app'
+          containerMappingPort: '8503:8503'
+          
+      - name: Run Robot Framework tests
+        run: |
+          echo "##[command]robot tests/"
+          robot tests/
+
+      - name: Delete package from GHCR if test fails
+        if: failure() 
+        run: |
+          echo "Robot test failed, deleting package from GHCR..."
+          REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
+          echo "Repo name: $REPO_NAME"
+          VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.IMAGE_TAG }}") | .id')
+          echo "Package version ID: $VERSION_ID"
+          curl -i -X DELETE -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$VERSION_ID"
+        
+      - name: 'Upload Artifact'
+        if: always()
+        uses: actions/upload-artifact@v4.6.0
+        with:
+          name: robot-test-report
+          path: ./report.html
+
+      - name: Push latest image to GitHub Container Registry
+        run: |
+          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
+          docker push ghcr.io/${{ env.REPO }}:latest
+
+      - name: Update image version in helm chart
+        run: |
+          echo "The JOB_No is ${{ github.run_number }}"
+          echo "GitHub Actions is not allowed to push commits to the repo, so we can't do it here now."
+          # Nextstep to push
+          # git config --global user.name "svtechnmaa"
+          # git config --global user.email "nmaa@svtech.com.vn"
+          # git clone -b feature/streamlit https://github.com/svtechnmaa/charts.git --depth=1 --single-branch
+          # cd charts/
+          # sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"${{ env.IMAGE_TAG }}"'/}' kubernetes/docxtemplate/values.yaml
+          # git add .
+          # git commit -m "no-ci: Update docxtemplate image version"
+          # git remote set-url origin https://svtechnmaa:${{ secrets.GITHUB_TOKEN }}@github.com/svtechnmaa/charts.git
+          # git push origin feature/streamlit
