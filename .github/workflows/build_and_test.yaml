@@ -154,12 +154,12 @@ jobs:
         with:
           python-version: "3.13"
       
-      - name: Update image version in charts 
+      - name: Modify image version in charts 
         run: |
           cd charts
           sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"${{ env.IMAGE_TAG }}"'/}' kubernetes/docxtemplate/values.yaml
         
-      - name: Update image version in helm chart 
+      - name: Update image version in stacked_charts 
         run: |
           pip install requests pyyaml
           python3 ./SVTECH_CI_utilities/auto_testing/python_script/public_helmchart_release.py --BUILD_VARS_PATH="." --ID="." --GITHUB_TOKEN=${{ secrets.PUSH_TOKEN }} --OWNER=svtechnmaa --charts_string=docxtemplate --REPO=charts
@@ -168,18 +168,18 @@ jobs:
           git config user.name "${{ env.GIT_USER_NAME }}"
           git config user.email "${{ env.GIT_USER_EMAIL }}"
 
-          git add .
-          git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
-
-          git log --oneline --graph --decorate --abbrev-commit
-
-          git push origin fix/tag
+          if [[ `git diff --name-only` ]]; then  
+            git add .
+            git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+            git push origin fix/tag
+          else
+            echo "No changes to commit" 
+          fi
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
-
         
-      - name: Update image version in helm chart 
+      - name: Update image version in charts 
         run: |
           cd charts 
           helm repo index artifacthub
@@ -187,12 +187,14 @@ jobs:
           git config user.name "${{ env.GIT_USER_NAME }}"
           git config user.email "${{ env.GIT_USER_EMAIL }}"
 
-          git add .
-          git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+          if [[ `git diff --name-only` ]]; then  
+            git add .
+            git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+            git push origin fix/tag
+          else
+            echo "No changes to commit" 
+          fi
 
-          git log --oneline --graph --decorate --abbrev-commit
-
-          git push origin fix/tag
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
