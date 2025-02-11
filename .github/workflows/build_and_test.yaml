@@ -118,17 +118,81 @@ jobs:
           docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
           docker push ghcr.io/${{ env.REPO }}:latest
 
-      - name: Update image version in helm chart
+  update:
+    needs: test
+    runs-on: ubuntu-dind
+    steps:
+      - name: Checkout charts 
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ github.repository_owner }}/charts'
+          token: ${{ secrets.PUSH_TOKEN }}
+          path: charts
+          ref: fix/tag
+
+      - name: Checkout stacked_charts 
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ github.repository_owner }}/stacked_charts'
+          token: ${{ secrets.PUSH_TOKEN }}
+          path: stacked_charts
+          ref: fix/tag
+      
+      - name: Checkout SVTECH_CI_utilities 
+        uses: actions/checkout@v4
+        with:
+          repository: '${{ github.repository_owner }}/SVTECH_CI_utilities'
+          token: ${{ secrets.PUSH_TOKEN }}
+          path: SVTECH_CI_utilities
+          ref: dev-jenkins
+
+      - name: Helm tool installer
+        uses: Azure/setup-helm@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.13"
+      
+      - name: Update image version in charts 
         run: |
-          echo "The JOB_No is ${{ github.run_number }}"
-          echo "GitHub Actions is not allowed to push commits to the repo, so we can't do it here now."
-          # Nextstep to push
-          # git config --global user.name "svtechnmaa"
-          # git config --global user.email "nmaa@svtech.com.vn"
-          # git clone -b feature/streamlit https://github.com/svtechnmaa/charts.git --depth=1 --single-branch
-          # cd charts/
-          # sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"${{ env.IMAGE_TAG }}"'/}' kubernetes/docxtemplate/values.yaml
-          # git add .
-          # git commit -m "no-ci: Update docxtemplate image version"
-          # git remote set-url origin https://svtechnmaa:${{ secrets.GITHUB_TOKEN }}@github.com/svtechnmaa/charts.git
-          # git push origin feature/streamlit
+          cd charts
+          sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"${{ env.IMAGE_TAG }}"'/}' kubernetes/docxtemplate/values.yaml
+        
+      - name: Update image version in helm chart 
+        run: |
+          pip install requests pyyaml
+          python3 ./SVTECH_CI_utilities/auto_testing/python_script/public_helmchart_release.py --BUILD_VARS_PATH="." --ID="." --GITHUB_TOKEN=${{ secrets.PUSH_TOKEN }} --OWNER=svtechnmaa --charts_string=docxtemplate --REPO=charts
+          
+          cd stacked_charts
+          git config user.name "${{ env.GIT_USER_NAME }}"
+          git config user.email "${{ env.GIT_USER_EMAIL }}"
+
+          git add .
+          git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+
+          git log --oneline --graph --decorate --abbrev-commit
+
+          git push origin master
+        env:
+          GIT_USER_NAME: "svtechnmaa"
+          GIT_USER_EMAIL: "nmaa@svtech.com.vn"
+
+        
+      - name: Update image version in helm chart 
+        run: |
+          cd charts 
+          helm repo index artifacthub
+
+          git config user.name "${{ env.GIT_USER_NAME }}"
+          git config user.email "${{ env.GIT_USER_EMAIL }}"
+
+          git add .
+          git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+
+          git log --oneline --graph --decorate --abbrev-commit
+
+          git push origin fix/tag
+        env:
+          GIT_USER_NAME: "svtechnmaa"
+          GIT_USER_EMAIL: "nmaa@svtech.com.vn"
