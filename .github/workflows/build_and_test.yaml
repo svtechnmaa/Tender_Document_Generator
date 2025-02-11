@@ -162,8 +162,6 @@ jobs:
         with:
           # GPG private key exported as an ASCII armored version or its base64 encoding
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          # Passphrase of the GPG private key
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
             
       - name: Modify image version in charts 
         run: |
@@ -193,7 +191,6 @@ jobs:
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         
       - name: Update image version in charts 
         run: |
@@ -216,4 +213,3 @@ jobs:
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
