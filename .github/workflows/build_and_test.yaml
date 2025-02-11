@@ -156,7 +156,15 @@ jobs:
         uses: actions/setup-python@v5.3.0
         with:
           python-version: "3.13"
-      
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6.2.0
+        with:
+          # GPG private key exported as an ASCII armored version or its base64 encoding
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          # Passphrase of the GPG private key
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+            
       - name: Modify image version in charts 
         run: |
           cd charts
@@ -173,8 +181,6 @@ jobs:
             git config user.name "${{ env.GIT_USER_NAME }}"
             git config user.email "${{ env.GIT_USER_EMAIL }}"
 
-            echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import          
-            gpg --list-secret-keys --keyid-format LONG
             git config commit.gpgSign true
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
 
@@ -193,13 +199,10 @@ jobs:
           cd charts 
           helm repo index artifacthub
 
-
           if [[ `git diff --name-only` ]]; then  
             git config user.name "${{ env.GIT_USER_NAME }}"
             git config user.email "${{ env.GIT_USER_EMAIL }}"
 
-            echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import          
-            gpg --list-secret-keys --keyid-format LONG
             git config commit.gpgSign true
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
             git add .
