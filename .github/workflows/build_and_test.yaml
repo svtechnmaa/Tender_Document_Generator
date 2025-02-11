@@ -173,7 +173,7 @@ jobs:
 
           git log --oneline --graph --decorate --abbrev-commit
 
-          git push origin master
+          git push origin fix/tag
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
