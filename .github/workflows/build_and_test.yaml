@@ -185,7 +185,7 @@ jobs:
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
 
             git add .
-            git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+            git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
             git push origin fix/tag
           else
             echo "No changes to commit" 
@@ -193,6 +193,7 @@ jobs:
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         
       - name: Update image version in charts 
         run: |
@@ -206,7 +207,7 @@ jobs:
             git config commit.gpgSign true
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
             git add .
-            git commit -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+            git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
             git push origin fix/tag
           else
             echo "No changes to commit" 
@@ -215,3 +216,4 @@ jobs:
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
