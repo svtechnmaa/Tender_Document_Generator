@@ -10,6 +10,9 @@ on:
 
 env:
   IMAGE_TAG: 'v1.${{ github.run_number }}'
+  IMAGE_NAME: 'tender-docxtemplate-app'
+  CONTAINER_NAME: 'tender-docxtemplate-app'
+  CONTAINER_MAPPING_PORT: '8503:8503'
 
 jobs:  
   build:
@@ -31,15 +34,15 @@ jobs:
           ${{ runner.os }}-buildx-
 
     - name: Build Docker image
-      run: docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t tender-docxtemplate-app .
+      run: docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t ${{ env.IMAGE_NAME }} .
 
     - id: run_and_check_container_status
       name: Run Tender app
       uses: ./.github/actions/run_docker_container
       with:
-        imageName: 'tender-docxtemplate-app'
-        containerName: 'tender-docxtemplate-app'
-        containerMappingPort: '8503:8503'
+        imageName: '${{ env.IMAGE_NAME }}'
+        containerName: '${{ env.CONTAINER_NAME }}'
+        containerMappingPort: '${{ env.CONTAINER_MAPPING_PORT }}'
 
     - name: Downcase REPO
       run: |
@@ -55,7 +58,7 @@ jobs:
 
     - name: Push image to GitHub Container Registry
       run: |
-        docker tag tender-docxtemplate-app:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+        docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
@@ -88,8 +91,8 @@ jobs:
         uses: ./.github/actions/run_docker_container
         with:
           imageName: 'ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}'
-          containerName: 'tender-docxtemplate-app'
-          containerMappingPort: '8503:8503'
+          containerName: '${{ env.CONTAINER_NAME }}'
+          containerMappingPort: '${{ env.CONTAINER_MAPPING_PORT }}'
           
       - name: Run Robot Framework tests
         run: |
