@@ -121,7 +121,7 @@ jobs:
           repository: '${{ github.repository_owner }}/charts'
           token: ${{ secrets.PUSH_TOKEN }}
           path: charts
-          ref: fix/tag
+          ref: main
 
       - name: Checkout stacked_charts 
         uses: actions/checkout@v4
@@ -129,7 +129,7 @@ jobs:
           repository: '${{ github.repository_owner }}/stacked_charts'
           token: ${{ secrets.PUSH_TOKEN }}
           path: stacked_charts
-          ref: fix/tag
+          ref: master
       
       - name: Checkout SVTECH_CI_utilities 
         uses: actions/checkout@v4
@@ -174,7 +174,7 @@ jobs:
 
             git add .
             git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
-            git push origin fix/tag
+            git push origin master
           else
             echo "No changes to commit" 
           fi
@@ -195,7 +195,7 @@ jobs:
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
             git add .
             git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
-            git push origin fix/tag
+            git push origin main
           else
             echo "No changes to commit" 
           fi
