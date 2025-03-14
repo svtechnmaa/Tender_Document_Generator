@@ -53,7 +53,7 @@ jobs:
   #       docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
-    needs: build
+    # needs: build
     runs-on: robot-dind
     permissions:
       contents: read
