@@ -10,7 +10,7 @@ on:
 
 env:
   # IMAGE_TAG: 'v1.${{ github.run_number }}'
-  IMAGE_TAG: 'v1.52'
+  IMAGE_TAG: 'v1.51'
   IMAGE_NAME: 'tender-docxtemplate-app'
   CONTAINER_NAME: 'tender-docxtemplate-app'
   CONTAINER_MAPPING_PORT: '8503:8503'
