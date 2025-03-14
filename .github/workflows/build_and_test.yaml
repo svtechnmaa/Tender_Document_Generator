@@ -10,7 +10,7 @@ on:
 
 env:
   # IMAGE_TAG: 'v1.${{ github.run_number }}'
-  IMAGE_TAG: 'latest'
+  IMAGE_TAG: 'v1.52'
   IMAGE_NAME: 'tender-docxtemplate-app'
   CONTAINER_NAME: 'tender-docxtemplate-app'
   CONTAINER_MAPPING_PORT: '8503:8503'
@@ -110,10 +110,10 @@ jobs:
             ./log.html
             ./report.html
 
-  #     - name: Push latest image to GitHub Container Registry
-  #       run: |
-  #         docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
-  #         docker push ghcr.io/${{ env.REPO }}:latest
+      - name: Push latest image to GitHub Container Registry
+        run: |
+          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
+          docker push ghcr.io/${{ env.REPO }}:latest
 
   # update:
   #   needs: test
