@@ -29,25 +29,26 @@ on:
       #   type: string
       run_build:
         description: 'Run job: build'
-        default: false
+        default: true
         type: boolean
       run_test:
         description: 'Run job: test'
-        default: false
+        default: true
         type: boolean
       run_update:
         description: 'Run job: build'
-        default: false
+        default: true
         type: boolean
       
 env:
-  IMAGE_TAG: 'v1.${{ github.run_number }}'
+  IMAGE_TAG: ${{ inputs.image_tag || 'v1.' + github.run_number }} 
   IMAGE_NAME: 'tender-docxtemplate-app'
   CONTAINER_NAME: 'tender-docxtemplate-app'
   CONTAINER_MAPPING_PORT: '8503:8503'
 
 jobs:  
   build:
+    if: ${{ inputs.run_build }}
     runs-on: ubuntu-dind
     permissions:
       contents: read
@@ -84,6 +85,7 @@ jobs:
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
+    if: ${{ inputs.run_test }}
     needs: build
     runs-on: robot-dind
     permissions:
@@ -147,6 +149,7 @@ jobs:
           docker push ghcr.io/${{ env.REPO }}:latest
 
   update:
+    if: ${{ inputs.run_update }}
     needs: test
     runs-on: ubuntu-dind
     steps:
