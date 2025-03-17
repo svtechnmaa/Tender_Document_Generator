@@ -10,25 +10,23 @@ on:
   workflow_dispatch:
     inputs:
       image_tag: 
-        description: 'Image tag'
-        required: true
-        default: 'v1.${{ github.run_number }}'
+        description: 'Image tag (default is v1.<run_number>)'
         type: string
-      image_name:
-        description: 'Image name'
-        required: true
-        default: 'tender-docxtemplate-app'
-        type: string
-      container_name:
-        description: 'Container name'
-        required: true
-        default: 'tender-docxtemplate-app'
-        type: string
-      container_mapping_port:
-        description: 'Container mapping port'
-        required: true
-        default: '8503:8503'
-        type: string
+      # image_name:
+      #   description: 'Image name'
+      #   required: true
+      #   default: 'tender-docxtemplate-app'
+      #   type: string
+      # container_name:
+      #   description: 'Container name'
+      #   required: true
+      #   default: 'tender-docxtemplate-app'
+      #   type: string
+      # container_mapping_port:
+      #   description: 'Container mapping port'
+      #   required: true
+      #   default: '8503:8503'
+      #   type: string
       run_build:
         description: 'Run job: build'
         default: false
