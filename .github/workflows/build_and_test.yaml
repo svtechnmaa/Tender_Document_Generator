@@ -85,7 +85,7 @@ jobs:
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_test && always()) 
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (inputs.run_test && success()) 
     needs: build
     runs-on: robot-dind
     permissions:
@@ -149,7 +149,7 @@ jobs:
           docker push ghcr.io/${{ env.REPO }}:latest
 
   update:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || (inputs.run_update && always())
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (inputs.run_update && success())
     needs: test
     runs-on: ubuntu-dind
     steps:
