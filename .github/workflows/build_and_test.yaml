@@ -48,7 +48,7 @@ env:
 
 jobs:  
   build:
-    if: ${{ inputs.run_build }}
+    if: ${{ inputs.run_build || true }}
     runs-on: ubuntu-dind
     permissions:
       contents: read
@@ -85,7 +85,7 @@ jobs:
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
-    if: ${{ inputs.run_test }}
+    if: ${{ inputs.run_test || true }}
     needs: build
     runs-on: robot-dind
     permissions:
@@ -149,7 +149,7 @@ jobs:
           docker push ghcr.io/${{ env.REPO }}:latest
 
   update:
-    if: ${{ inputs.run_update }}
+    if: ${{ inputs.run_update || true }}
     needs: test
     runs-on: ubuntu-dind
     steps:
