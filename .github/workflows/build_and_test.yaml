@@ -85,7 +85,7 @@ jobs:
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
-    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request' || inputs.run_test)
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_test && always())
     needs: build
     runs-on: robot-dind
     permissions:
