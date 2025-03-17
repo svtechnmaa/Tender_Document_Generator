@@ -48,7 +48,7 @@ env:
 
 jobs:  
   build:
-    if: inputs.run_build
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.run_build
     runs-on: ubuntu-dind
     permissions:
       contents: read
@@ -85,7 +85,7 @@ jobs:
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
-    if: ${{ inputs.run_test || true }}
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.run_test
     needs: build
     runs-on: robot-dind
     permissions:
@@ -149,7 +149,7 @@ jobs:
           docker push ghcr.io/${{ env.REPO }}:latest
 
   update:
-    if: ${{ inputs.run_update || true }}
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.run_update
     needs: test
     runs-on: ubuntu-dind
     steps:
