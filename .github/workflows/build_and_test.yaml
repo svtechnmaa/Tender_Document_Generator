@@ -41,7 +41,7 @@ on:
         type: boolean
       
 env:
-  IMAGE_TAG: ${{ inputs.image_tag || 'v1.' + github.run_number }} 
+  IMAGE_TAG: ${{ inputs.image_tag || ('v1.' + github.run_number) }} 
   IMAGE_NAME: 'tender-docxtemplate-app'
   CONTAINER_NAME: 'tender-docxtemplate-app'
   CONTAINER_MAPPING_PORT: '8503:8503'
