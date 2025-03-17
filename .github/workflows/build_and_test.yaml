@@ -85,7 +85,12 @@ jobs:
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
-    if: (github.event_name == 'push' && !cancelled() ) || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_test && always() && !cancelled())
+    # add always() to prevent needs previous job if it is cancelled by manual trigger
+    # add !cancelled() and !failure to prevent always()
+    if: |
+      ( github.event_name == 'push' && !cancelled() && !failure() ) || 
+      ( github.event_name == 'pull_request' && !cancelled() && !failure() ) || 
+      ( github.event_name == 'workflow_dispatch' && inputs.run_test && always() && !cancelled() && !failure() )
     needs: build
     runs-on: robot-dind
     permissions:
@@ -149,7 +154,12 @@ jobs:
           docker push ghcr.io/${{ env.REPO }}:latest
 
   update:
-    if: (github.event_name == 'push' && !cancelled() ) || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_update && always() && !cancelled())
+    # add always() to prevent needs previous job if it is cancelled by manual trigger
+    # add !cancelled() and !failure to prevent always()
+    if: |
+      ( github.event_name == 'push' && !cancelled() && !failure() ) || 
+      ( github.event_name == 'pull_request' && !cancelled() && !failure() ) || 
+      ( github.event_name == 'workflow_dispatch' && inputs.run_update && always() && !cancelled() && !failure() )
     needs: test
     runs-on: ubuntu-dind
     steps:
