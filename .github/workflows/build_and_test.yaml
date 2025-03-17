@@ -36,7 +36,7 @@ on:
         default: true
         type: boolean
       run_update:
-        description: 'Run job: build'
+        description: 'Run job: update'
         default: true
         type: boolean
       
