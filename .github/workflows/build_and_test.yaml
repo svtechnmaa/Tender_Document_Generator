@@ -9,32 +9,39 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      logLevel:
-        description: 'Log level'
+      image_tag: 
+        description: 'Image tag'
         required: true
-        default: 'warning'
-        type: choice
-        options:
-        - info
-        - warning
-        - debug
-      tags:
-        description: 'Test scenario tags'
-        required: false
-        type: boolean
-      environment:
-        description: 'Environment to run tests against'
-        type: environment
-        required: true
-      test_string:
-        description: 'String test to run'
+        default: 'v1.${{ github.run_number }}'
         type: string
+      image_name:
+        description: 'Image name'
         required: true
-      test_number:
-        description: 'Number test to run'
-        type: number
+        default: 'tender-docxtemplate-app'
+        type: string
+      container_name:
+        description: 'Container name'
         required: true
-
+        default: 'tender-docxtemplate-app'
+        type: string
+      container_mapping_port:
+        description: 'Container mapping port'
+        required: true
+        default: '8503:8503'
+        type: string
+      run_build:
+        description: 'Run job: build'
+        default: false
+        type: boolean
+      run_test:
+        description: 'Run job: test'
+        default: false
+        type: boolean
+      run_update:
+        description: 'Run job: build'
+        default: false
+        type: boolean
+      
 env:
   IMAGE_TAG: 'v1.${{ github.run_number }}'
   IMAGE_NAME: 'tender-docxtemplate-app'
