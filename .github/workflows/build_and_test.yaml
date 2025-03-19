@@ -131,6 +131,7 @@ jobs:
         run: |
           echo "##[command]robot tests/"
           robot tests/
+          exit 1
 
       - name: Delete package from GHCR if test fails
         if: failure() && !inputs.keep_image 
