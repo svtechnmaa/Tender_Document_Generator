@@ -14,7 +14,7 @@ on:
         type: boolean
         default: false
       image_tag: 
-        description: 'Image tag (default is v1.<run_number>)'
+        description: 'Image tag (default is v1.<latest_run_number>)'
         type: string
       # image_name:
       #   description: 'Image name'
@@ -131,7 +131,6 @@ jobs:
         run: |
           echo "##[command]robot tests/"
           robot tests/
-          exit 1
 
       - name: Delete package from GHCR if test fails
         if: failure() && !inputs.keep_image 
