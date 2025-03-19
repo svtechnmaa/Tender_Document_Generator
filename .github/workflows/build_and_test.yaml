@@ -9,6 +9,10 @@ on:
       - main
   workflow_dispatch:
     inputs:
+      keep_image: 
+        description: 'Keep image in GHCR even test fails'
+        type: boolean
+        default: false
       image_tag: 
         description: 'Image tag (default is v1.<run_number>)'
         type: string
@@ -129,7 +133,7 @@ jobs:
           robot tests/
 
       - name: Delete package from GHCR if test fails
-        if: failure() 
+        if: failure() && !inputs.keep_image 
         run: |
           echo "Robot test failed, deleting package from GHCR..."
           REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
