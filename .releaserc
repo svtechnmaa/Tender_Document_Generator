@@ -1,0 +1,9 @@
+{
+    "branches": ["master"],
+    "repositoryUrl": "https://github.com/chi-org/Tender_Document_Generator",
+    "plugins": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/release-notes-generator",
+        "@semantic-release/github"
+    ]
+}
