@@ -7,27 +7,83 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      image_tag: 
+        description: 'Image Tag (default: test-v<latest_run_number>). "latest" or "vxx.xx.xx" image cannot be rebuilt or deleted.'
+        type: string
+      keep_image: 
+        description: 'Keep image in GHCR even test fails'
+        type: boolean
+        default: false
+      commit_id:
+        description: 'Commit Full ID (default: latest commit). e.g daae94a0f72a13f7092812fa42d684b2af827xxx'
+        type: string
 
+      # image_name:
+      #   description: 'Image name'
+      #   required: true
+      #   default: 'tender-docxtemplate-app'
+      #   type: string
+      # container_name:
+      #   description: 'Container name'
+      #   required: true
+      #   default: 'tender-docxtemplate-app'
+      #   type: string
+      # container_mapping_port:
+      #   description: 'Container mapping port'
+      #   required: true
+      #   default: '8503:8503'
+      #   type: string
+      run_build:
+        description: 'Run job: build'
+        default: true
+        type: boolean
+      run_test:
+        description: 'Run job: test'
+        default: true
+        type: boolean
+      
 env:
-  IMAGE_TAG: 'v1.${{ github.run_number }}'
+  IMAGE_TAG: ${{ inputs.image_tag && inputs.image_tag || format('test-v{0}', github.run_number) }}
   IMAGE_NAME: 'tender-docxtemplate-app'
   CONTAINER_NAME: 'tender-docxtemplate-app'
   CONTAINER_MAPPING_PORT: '8503:8503'
+  COMMIT_ID: ${{ inputs.commit_id || github.sha }}
 
 jobs:  
   build:
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (inputs.run_build && github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-dind
     permissions:
       contents: read
       packages: write
     steps:
+    - name: Validate image tag
+      if: github.event_name == 'workflow_dispatch'
+      id: validate_dispatch_inputs
+      run: |
+        if [[ "${{ inputs.image_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "${{ inputs.image_tag }}" == "latest" ]]; then
+          echo "is_image_tag_valid=false" >> $GITHUB_OUTPUT
+          echo "You CAN NOT build image with tag ${{ inputs.image_tag }} with manual trigger. Skipping the rest of the build job..."
+        else
+          echo "is_image_tag_valid=true" >> $GITHUB_OUTPUT
+        fi
+
     - name: Checkout code
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
       uses: actions/checkout@v4
+      with:
+        ref: ${{ env.COMMIT_ID }}
 
     - name: Build Docker image
-      run: docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t ${{ env.IMAGE_NAME }} .
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
+      run: |
+        echo ${{ steps.validate_dispatch_inputs.outputs.is_image_tag_valid }}
+        docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t ${{ env.IMAGE_NAME }} .
 
     - id: run_and_check_container_status
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
       name: Run Tender app
       uses: svtechnmaa/.github/actions/run_docker_container@main
       with:
@@ -36,10 +92,12 @@ jobs:
         containerMappingPort: '${{ env.CONTAINER_MAPPING_PORT }}'
 
     - name: Downcase REPO
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
       run: |
         echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
 
     - name: Login to GitHub Container Registry
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
       uses: docker/login-action@v2
       with:
         registry: ghcr.io
@@ -47,11 +105,18 @@ jobs:
         password: '${{ secrets.GITHUB_TOKEN }}'
         
     - name: Push image to GitHub Container Registry
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
       run: |
         docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
         docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
 
   test: 
+    # add always() to prevent needs previous job if it is cancelled by manual trigger
+    # add !cancelled() and !failure to prevent always()
+    if: |
+      ( github.event_name == 'push' && !cancelled() && !failure() ) || 
+      ( github.event_name == 'pull_request' && !cancelled() && !failure() ) || 
+      ( github.event_name == 'workflow_dispatch' && inputs.run_test && always() && !cancelled() && !failure() )
     needs: build
     runs-on: robot-dind
     permissions:
@@ -60,6 +125,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT_ID }}
 
       - name: Downcase REPO
         run: |
@@ -90,15 +157,19 @@ jobs:
           robot tests/
 
       - name: Delete package from GHCR if test fails
-        if: failure() 
+        if: failure() && !inputs.keep_image 
         run: |
-          echo "Robot test failed, deleting package from GHCR..."
-          REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
-          echo "Repo name: $REPO_NAME"
-          VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.IMAGE_TAG }}") | .id')
-          echo "Package version ID: $VERSION_ID"
-          curl -i -X DELETE -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$VERSION_ID"
-        
+          if [[ "${{ env.IMAGE_TAG }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "${{ env.IMAGE_TAG }}" == "latest" ]]; then
+            echo "Image with tag ${{ env.IMAGE_TAG }} must NOT be deleted."
+          else
+            echo "Robot test failed, deleting package from GHCR..."
+            REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
+            echo "Repo name: $REPO_NAME"
+            VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.IMAGE_TAG }}") | .id')
+            echo "Package version ID: $VERSION_ID"
+            curl -i -X DELETE -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$VERSION_ID"
+          fi
+
       - name: 'Upload Artifact'
         if: always()
         uses: actions/upload-artifact@v4.6.0
@@ -109,16 +180,75 @@ jobs:
             ./log.html
             ./report.html
 
-      - name: Push latest image to GitHub Container Registry
-        run: |
-          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
-          docker push ghcr.io/${{ env.REPO }}:latest
 
-  update:
+  release:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     needs: test
     runs-on: ubuntu-dind
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v4
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If permission denied for protected branch, use ${{ secrets.PUSH_TOKEN }} instead.
+      
+      - name: No release published
+        if: ${{ !steps.semantic.outputs.new_release_published }}
+        run: |
+          echo "No release published, skipping the rest of the job..."
+
+      - name: Downcase REPO
+        if: steps.semantic.outputs.new_release_published
+        run: |
+          echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+
+      - name: Login to GitHub Container Registry
+        if: steps.semantic.outputs.new_release_published
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: '${{ github.repository_owner }}'
+          password: '${{ secrets.GITHUB_TOKEN }}'
+
+      - name: Pull image from GitHub Container Registry
+        if: steps.semantic.outputs.new_release_published
+        run: |
+          docker pull ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+
+      - name: Delete package from GHCR after successful release
+        if: steps.semantic.outputs.new_release_published
+        run: |
+          if [[ "${{ env.IMAGE_TAG }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "${{ env.IMAGE_TAG }}" == "latest" ]]; then
+            echo "Image with tag ${{ env.IMAGE_TAG }} must NOT be deleted."
+          else
+            echo "New release ${{ env.RELEASE_IMAGE_TAG }} was published, deleting image ${{ env.IMAGE_TAG }} from GHCR..."
+            REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
+            echo "Repo name: $REPO_NAME"
+            VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.IMAGE_TAG }}") | .id')
+            echo "Package version ID: $VERSION_ID"
+            curl -i -X DELETE -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$VERSION_ID"
+          fi
+        env: 
+          RELEASE_IMAGE_TAG: v${{ steps.semantic.outputs.new_release_version }}
+      
+      - name: Push latest released image to GitHub Container Registry
+        if: steps.semantic.outputs.new_release_published
+        run: |
+          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:${{ env.RELEASE_IMAGE_TAG }}
+          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
+
+          docker push ghcr.io/${{ env.REPO }}:${{ env.RELEASE_IMAGE_TAG }}
+          docker push ghcr.io/${{ env.REPO }}:latest
+        env: 
+          RELEASE_IMAGE_TAG: v${{ steps.semantic.outputs.new_release_version }}
+
       - name: Checkout charts 
+        if: steps.semantic.outputs.new_release_published
         uses: actions/checkout@v4
         with:
           repository: '${{ github.repository_owner }}/charts'
@@ -127,6 +257,7 @@ jobs:
           ref: main
 
       - name: Checkout stacked_charts 
+        if: steps.semantic.outputs.new_release_published
         uses: actions/checkout@v4
         with:
           repository: '${{ github.repository_owner }}/stacked_charts'
@@ -135,6 +266,7 @@ jobs:
           ref: master
       
       - name: Checkout SVTECH_CI_utilities 
+        if: steps.semantic.outputs.new_release_published
         uses: actions/checkout@v4
         with:
           repository: '${{ github.repository_owner }}/SVTECH_CI_utilities'
@@ -143,25 +275,32 @@ jobs:
           ref: dev-jenkins
 
       - name: Helm tool installer
+        if: steps.semantic.outputs.new_release_published
         uses: Azure/setup-helm@v3
       
       - name: Setup Python
+        if: steps.semantic.outputs.new_release_published
         uses: actions/setup-python@v5.3.0
         with:
           python-version: "3.13"
 
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6.2.0
-        with:
-          # GPG private key exported as an ASCII armored version or its base64 encoding
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+      # - name: Import GPG key
+      #   if: steps.semantic.outputs.new_release_published
+      #   uses: crazy-max/ghaction-import-gpg@v6.2.0
+      #   with:
+      #     # GPG private key exported as an ASCII armored version or its base64 encoding
+      #     gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
             
       - name: Modify image version in charts 
+        if: steps.semantic.outputs.new_release_published
         run: |
           cd charts
-          sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"${{ env.IMAGE_TAG }}"'/}' kubernetes/docxtemplate/values.yaml
+          sed -i '/^  repository: svtechnmaa\/tender_document_generator/{N;s/  tag: .*/  tag: '"${{ env.RELEASE_IMAGE_TAG }}"'/}' kubernetes/docxtemplate/values.yaml
+        env:
+          RELEASE_IMAGE_TAG: v${{ steps.semantic.outputs.new_release_version }}
         
       - name: Update image version in stacked_charts 
+        if: steps.semantic.outputs.new_release_published
         run: |
           pip install requests pyyaml
           python3 ./SVTECH_CI_utilities/auto_testing/python_script/public_helmchart_release.py --BUILD_VARS_PATH="." --ID="." --GITHUB_TOKEN=${{ secrets.PUSH_TOKEN }} --OWNER=svtechnmaa --charts_string=docxtemplate --REPO=charts
@@ -176,7 +315,7 @@ jobs:
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
 
             git add .
-            git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+            git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.RELEASE_IMAGE_TAG }}"
             git push origin master
           else
             echo "No changes to commit" 
@@ -184,8 +323,10 @@ jobs:
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
+          RELEASE_IMAGE_TAG: v${{ steps.semantic.outputs.new_release_version }}
         
       - name: Update image version in charts 
+        if: steps.semantic.outputs.new_release_published
         run: |
           cd charts 
           helm repo index artifacthub
@@ -197,7 +338,7 @@ jobs:
             git config commit.gpgSign true
             git config user.signingkey ${{ secrets.GPG_KEY_ID }}
             git add .
-            git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.IMAGE_TAG }}"
+            git commit --no-verify -m "no-ci: Update docxtemplate image version to ${{ env.RELEASE_IMAGE_TAG }}"
             git push origin main
           else
             echo "No changes to commit" 
@@ -205,3 +346,4 @@ jobs:
         env:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
+          RELEASE_IMAGE_TAG: v${{ steps.semantic.outputs.new_release_version }}
