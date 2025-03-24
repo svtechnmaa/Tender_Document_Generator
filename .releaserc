@@ -1,6 +1,6 @@
 {
     "branches": ["main"],
-    "repositoryUrl": "https://github.com/chi-org/Tender_Document_Generator",
+    "repositoryUrl": "https://github.com/svtechnmaa/Tender_Document_Generator",
     "plugins": [
         "@semantic-release/commit-analyzer",
         "@semantic-release/release-notes-generator",
