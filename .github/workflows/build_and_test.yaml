@@ -284,12 +284,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      # - name: Import GPG key
-      #   if: steps.semantic.outputs.new_release_published
-      #   uses: crazy-max/ghaction-import-gpg@v6.2.0
-      #   with:
-      #     # GPG private key exported as an ASCII armored version or its base64 encoding
-      #     gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+      - name: Import GPG key
+        if: steps.semantic.outputs.new_release_published
+        uses: crazy-max/ghaction-import-gpg@v6.2.0
+        with:
+          # GPG private key exported as an ASCII armored version or its base64 encoding
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
             
       - name: Modify image version in charts 
         if: steps.semantic.outputs.new_release_published
