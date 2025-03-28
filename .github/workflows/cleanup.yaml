@@ -1,4 +1,4 @@
-name: "Scheduled Cleanup GHCR" 
+name: "Scheduled Cleanup GHCR (clean up images older than 7 days and not tagged with latest or vX.X.X)" 
 
 on: 
   workflow_dispatch:
