@@ -9,81 +9,79 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      image_tag: 
-        description: 'Image Tag (default: test-v<latest_run_number>). "latest" or "vxx.xx.xx" image cannot be rebuilt or deleted.'
+      commit_id:
+        description: 'Full commit ID to build (default: latest commit). e.g daae94a0f72a13f7092812fa42d684b2af827xxx. WARNING: release job will NOT run by this trigger'
         type: string
+      run_test:
+        description: 'Run test'
+        default: true
+        type: boolean
       keep_image: 
         description: 'Keep image in GHCR even test fails'
         type: boolean
         default: false
-      commit_id:
-        description: 'Commit Full ID (default: latest commit). e.g daae94a0f72a13f7092812fa42d684b2af827xxx'
-        type: string
-
-      # image_name:
-      #   description: 'Image name'
-      #   required: true
-      #   default: 'tender-docxtemplate-app'
-      #   type: string
-      # container_name:
-      #   description: 'Container name'
-      #   required: true
-      #   default: 'tender-docxtemplate-app'
-      #   type: string
-      # container_mapping_port:
-      #   description: 'Container mapping port'
-      #   required: true
-      #   default: '8503:8503'
-      #   type: string
-      run_build:
-        description: 'Run job: build'
-        default: true
-        type: boolean
-      run_test:
-        description: 'Run job: test'
-        default: true
-        type: boolean
       
 env:
-  IMAGE_TAG: ${{ inputs.image_tag && inputs.image_tag || format('test-v{0}', github.run_number) }}
+  IMAGE_TEST_TAG: ${{ format('test-v{0}', github.run_number) }}
   IMAGE_NAME: 'tender-docxtemplate-app'
   CONTAINER_NAME: 'tender-docxtemplate-app'
   CONTAINER_MAPPING_PORT: '8503:8503'
-  COMMIT_ID: ${{ inputs.commit_id || github.sha }}
+  COMMIT_FULL_ID: ${{ inputs.commit_id || github.sha }}
 
 jobs:  
   build:
-    if: github.event_name == 'push' || github.event_name == 'pull_request' || (inputs.run_build && github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-dind
     permissions:
       contents: read
       packages: write
+    outputs:
+      is_latest_or_release_image: ${{ steps.check_existing_image.outputs.is_latest_or_release_image }}
     steps:
-    - name: Validate image tag
-      if: github.event_name == 'workflow_dispatch'
-      id: validate_dispatch_inputs
-      run: |
-        if [[ "${{ inputs.image_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "${{ inputs.image_tag }}" == "latest" ]]; then
-          echo "is_image_tag_valid=false" >> $GITHUB_OUTPUT
-          echo "You CAN NOT build image with tag ${{ inputs.image_tag }} with manual trigger. Skipping the rest of the build job..."
-        else
-          echo "is_image_tag_valid=true" >> $GITHUB_OUTPUT
-        fi
-
     - name: Checkout code
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
       uses: actions/checkout@v4
       with:
-        ref: ${{ env.COMMIT_ID }}
+        ref: ${{ env.COMMIT_FULL_ID }}
+    - name: Downcase REPO and shorten COMMIT ID
+      run: |
+        COMMIT_SHORT_ID=$(git rev-parse --short ${{ env.COMMIT_FULL_ID }})
+        echo "COMMIT_SHORT_ID=${COMMIT_SHORT_ID}" >>${GITHUB_ENV}
+        echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+        echo "COMMIT_SHORT_ID=${{ env.COMMIT_SHORT_ID }}"
+        echo "REPO=${{ env.REPO }}"
+
+    - name: Check existing image in GHCR
+      id: check_existing_image
+      run: |
+        REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
+        
+        IMAGES=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r ' .[] | {tags: .metadata.container.tags, updated_at: .updated_at, id: .id} ')
+
+        EXISTED_IMAGE=$(echo $IMAGES | jq -c 'select(.tags | contains(["${{ env.COMMIT_SHORT_ID }}"]))')
+
+        if [[ -z $EXISTED_IMAGE ]]; then
+          echo "is_image_tag_by_commit_id_existed=false" >> $GITHUB_OUTPUT
+        else
+          FULL_TAGS=$(echo $EXISTED_IMAGE | jq -c '.tags')
+          if [[ $FULL_TAGS == *"latest"* || $FULL_TAGS =~ v[0-9]+\.[0-9]+\.[0-9]+ ]]; then    
+            echo "is_latest_or_release_image=true" >> $GITHUB_OUTPUT
+            echo "is_latest_or_release_image=true"
+          else
+            echo "is_latest_or_release_image=false" >> $GITHUB_OUTPUT
+            echo "is_latest_or_release_image=false"
+          fi
+
+          echo "Image which has tag ${{ env.COMMIT_SHORT_ID }} is existed. The full tags are $FULL_TAGS. Skipping the rest of the build job..."
+          echo "is_image_tag_by_commit_id_existed=true" >> $GITHUB_OUTPUT
+        fi
 
     - name: Build Docker image
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
       run: |
-        echo ${{ steps.validate_dispatch_inputs.outputs.is_image_tag_valid }}
+        echo ${{ steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed }}
         docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t ${{ env.IMAGE_NAME }} .
 
     - id: run_and_check_container_status
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
       name: Run Tender app
       uses: svtechnmaa/.github/actions/run_docker_container@main
       with:
@@ -91,13 +89,8 @@ jobs:
         containerName: '${{ env.CONTAINER_NAME }}'
         containerMappingPort: '${{ env.CONTAINER_MAPPING_PORT }}'
 
-    - name: Downcase REPO
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
-      run: |
-        echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
-
     - name: Login to GitHub Container Registry
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
       uses: docker/login-action@v2
       with:
         registry: ghcr.io
@@ -105,18 +98,20 @@ jobs:
         password: '${{ secrets.GITHUB_TOKEN }}'
         
     - name: Push image to GitHub Container Registry
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.validate_dispatch_inputs.outputs.is_image_tag_valid == 'true'
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
       run: |
-        docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
-        docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+        docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TEST_TAG }}
+        docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}
+        docker push ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TEST_TAG }}
+        docker push ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}
 
   test: 
     # add always() to prevent needs previous job if it is cancelled by manual trigger
     # add !cancelled() and !failure to prevent always()
     if: |
-      ( github.event_name == 'push' && !cancelled() && !failure() ) || 
-      ( github.event_name == 'pull_request' && !cancelled() && !failure() ) || 
-      ( github.event_name == 'workflow_dispatch' && inputs.run_test && always() && !cancelled() && !failure() )
+      github.event_name == 'push'|| 
+      github.event_name == 'pull_request' || 
+      ( github.event_name == 'workflow_dispatch' && inputs.run_test ) 
     needs: build
     runs-on: robot-dind
     permissions:
@@ -126,11 +121,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.COMMIT_ID }}
+          ref: ${{ env.COMMIT_FULL_ID }}
 
-      - name: Downcase REPO
+      - name: Downcase REPO and shorten COMMIT ID
         run: |
+          COMMIT_SHORT_ID=$(git rev-parse --short ${{ env.COMMIT_FULL_ID }})
+          echo "COMMIT_SHORT_ID=${COMMIT_SHORT_ID}" >>${GITHUB_ENV}
           echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+          echo "COMMIT_SHORT_ID=${{ env.COMMIT_SHORT_ID }}"
+          echo "REPO=${{ env.REPO }}"
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
@@ -141,13 +140,13 @@ jobs:
           
       - name: Pull image from GitHub Container Registry
         run: |
-          docker pull ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+          docker pull ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}
 
       - id: run_and_check_container_status
         name: Run Tender app
         uses: svtechnmaa/.github/actions/run_docker_container@main
         with:
-          imageName: 'ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}'
+          imageName: 'ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}'
           containerName: '${{ env.CONTAINER_NAME }}'
           containerMappingPort: '${{ env.CONTAINER_MAPPING_PORT }}'
           
@@ -159,13 +158,13 @@ jobs:
       - name: Delete package from GHCR if test fails
         if: failure() && !inputs.keep_image 
         run: |
-          if [[ "${{ env.IMAGE_TAG }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "${{ env.IMAGE_TAG }}" == "latest" ]]; then
-            echo "Image with tag ${{ env.IMAGE_TAG }} must NOT be deleted."
+          if [[ "${{ needs.build.outputs.is_latest_or_release_image }}" == "true" ]]; then
+            echo "Image with tag ${{ env.COMMIT_SHORT_ID }} must NOT be deleted as it is release or latest image."
           else
             echo "Robot test failed, deleting package from GHCR..."
             REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
             echo "Repo name: $REPO_NAME"
-            VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.IMAGE_TAG }}") | .id')
+            VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.COMMIT_SHORT_ID }}") | .id')
             echo "Package version ID: $VERSION_ID"
             curl -i -X DELETE -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$VERSION_ID"
           fi
@@ -198,14 +197,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # If permission denied for protected branch, use ${{ secrets.PUSH_TOKEN }} instead.
       
       - name: No release published
-        if: steps.semantic.outputs.new_release_published == 'false'
+        if: ${{ steps.semantic.outputs.new_release_published == 'false' }}
         run: |
           echo "No release published, skipping the rest of the job..."
 
-      - name: Downcase REPO
+      - name: Downcase REPO and shorten COMMIT ID
         if: steps.semantic.outputs.new_release_published == 'true'
         run: |
-          echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+            COMMIT_SHORT_ID=$(git rev-parse --short ${{ env.COMMIT_FULL_ID }})
+            echo "COMMIT_SHORT_ID=${COMMIT_SHORT_ID}" >>${GITHUB_ENV}
+            echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
+            echo "COMMIT_SHORT_ID=${{ env.COMMIT_SHORT_ID }}"
+            echo "REPO=${{ env.REPO }}"
 
       - name: Login to GitHub Container Registry
         if: steps.semantic.outputs.new_release_published == 'true'
@@ -218,18 +221,18 @@ jobs:
       - name: Pull image from GitHub Container Registry
         if: steps.semantic.outputs.new_release_published == 'true'
         run: |
-          docker pull ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }}
+          docker pull ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}
 
       - name: Delete package from GHCR after successful release
         if: steps.semantic.outputs.new_release_published == 'true'
         run: |
-          if [[ "${{ env.IMAGE_TAG }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "${{ env.IMAGE_TAG }}" == "latest" ]]; then
-            echo "Image with tag ${{ env.IMAGE_TAG }} must NOT be deleted."
+          if [[ "${{ needs.build.outputs.is_latest_or_release_image }}" == "true" ]]; then
+            echo "Image with tag ${{ env.COMMIT_SHORT_ID }} must NOT be deleted as it is release or latest image."
           else
-            echo "New release ${{ env.RELEASE_IMAGE_TAG }} was published, deleting image ${{ env.IMAGE_TAG }} from GHCR..."
+            echo "New release ${{ env.RELEASE_IMAGE_TAG }} was published, deleting image ${{ env.COMMIT_SHORT_ID }} from GHCR..."
             REPO_NAME=$(echo ${{ env.REPO }} | cut -d'/' -f2)
             echo "Repo name: $REPO_NAME"
-            VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.IMAGE_TAG }}") | .id')
+            VERSION_ID=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions" | jq -r '.[] | select(.metadata.container.tags[] == "${{ env.COMMIT_SHORT_ID }}") | .id')
             echo "Package version ID: $VERSION_ID"
             curl -i -X DELETE -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' -H "Accept: application/vnd.github.v3+json" "https://api.github.com/users/${{ github.repository_owner }}/packages/container/$REPO_NAME/versions/$VERSION_ID"
           fi
@@ -239,8 +242,10 @@ jobs:
       - name: Push latest released image to GitHub Container Registry
         if: steps.semantic.outputs.new_release_published == 'true'
         run: |
-          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:${{ env.RELEASE_IMAGE_TAG }}
-          docker tag ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TAG }} ghcr.io/${{ env.REPO }}:latest
+          docker push ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}  
+
+          docker tag ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }} ghcr.io/${{ env.REPO }}:${{ env.RELEASE_IMAGE_TAG }}
+          docker tag ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }} ghcr.io/${{ env.REPO }}:latest
 
           docker push ghcr.io/${{ env.REPO }}:${{ env.RELEASE_IMAGE_TAG }}
           docker push ghcr.io/${{ env.REPO }}:latest
