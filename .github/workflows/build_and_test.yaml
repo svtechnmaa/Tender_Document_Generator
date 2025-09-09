@@ -34,6 +34,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
     outputs:
       is_latest_or_release_image: ${{ steps.check_existing_image.outputs.is_latest_or_release_image }}
     steps:
