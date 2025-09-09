@@ -23,8 +23,8 @@ on:
       
 env:
   IMAGE_TEST_TAG: ${{ format('test-v{0}', github.run_number) }}
-  IMAGE_NAME: 'tender-docxtemplate-app'
-  CONTAINER_NAME: 'tender-docxtemplate-app'
+  IMAGE_NAME: 'tender_docxtemplate_app'
+  CONTAINER_NAME: 'tender_docxtemplate_app'
   CONTAINER_MAPPING_PORT: '8503:8503'
   COMMIT_FULL_ID: ${{ inputs.commit_id || github.sha }}
 
