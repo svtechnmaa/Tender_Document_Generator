@@ -81,13 +81,65 @@ jobs:
             echo "is_image_tag_by_commit_id_existed=true" >> $GITHUB_OUTPUT
           fi        
         fi
+    - name: Get Job ID
+      id: get_job_id
+      run: |
+        curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        "https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs" \
+        | jq '.jobs[] | select(.name=="build") | .id' > job_id.txt
+        echo "job_id=$(cat job_id.txt)" >> $GITHUB_OUTPUT
 
+    - name: Determine Commit ID and Comitter Email
+      id: determine_commit_id_and_email_author
+      run: |
+        if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
+          COMMIT_ID=${{ github.event.inputs.commit_id }}
+          COMMIT_AUTHOR_EMAIL=$(git show -s --format='%ae' $COMMIT_ID)
+          COMMIT_AUTHOR_NAME=$(git show -s --format='%aN' $COMMIT_ID)
+        else
+          COMMIT_ID=${{ github.event.head_commit.id }}
+          COMMIT_AUTHOR_EMAIL=${{ github.event.head_commit.author.email }}
+          COMMIT_AUTHOR_NAME=${{ github.event.head_commit.author.name }}
+        fi
+
+        echo "COMMIT_ID=${COMMIT_ID}" >> $GITHUB_OUTPUT
+        echo "COMMIT_AUTHOR_EMAIL=${COMMIT_AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
+        echo "COMMIT_AUTHOR_NAME=${COMMIT_AUTHOR_NAME}" >> $GITHUB_OUTPUT
+
+    - name: Login to dockerhub
+      uses: docker/login-action@v2
+      with:
+        registry: docker.io
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+    - name: Scan Dockerfile using Trivy and send mail if vulnerabilities detected
+      uses: svtechnmaa/.github/actions/run_trivy_scan_dockerfile@main
+      with:
+        dockerfile_path: './Dockerfile'
+        commit_id: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_ID }}
+        mail_username: ${{ vars.MAIL_USERNAME }}
+        mail_password: ${{ secrets.MAIL_PASSWORD }}
+        commit_author_email: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_EMAIL }}
+        commit_author_name: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_NAME }}
+        job_id: ${{ steps.get_job_id.outputs.job_id }}
     - name: Build Docker image
       if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
       run: |
         echo ${{ steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed }}
         docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t ${{ env.IMAGE_NAME }} .
-
+    - name: Scan Docker image using Trivy and send mail if vulnerabilities detected
+      uses: svtechnmaa/.github/actions/run_trivy_scan_image@main
+      with:
+        trivy_server: ${{ secrets.TRIVY_SERVER }}
+        image_name: ${{env.IMAGE_NAME}}
+        image_tag: 'latest'
+        commit_id: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_ID }}
+        mail_username: ${{ vars.MAIL_USERNAME }}
+        mail_password: ${{ secrets.MAIL_PASSWORD }}
+        commit_author_email: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_EMAIL }}
+        commit_author_name: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_NAME }}
+        job_id: ${{ steps.get_job_id.outputs.job_id }}
     - id: run_and_check_container_status
       if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
       name: Run Tender app
