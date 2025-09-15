@@ -36,6 +36,9 @@ jobs:
       packages: write
       security-events: write
     outputs:
+      check_no_ci: ${{ steps.check_commit_message.outputs.no_ci }}
+      check_no_scan: ${{ steps.check_commit_message.outputs.no_scan }}
+      check_no_cache: ${{ steps.check_commit_message.outputs.no_cache }}
       is_latest_or_release_image: ${{ steps.check_existing_image.outputs.is_latest_or_release_image }}
     steps:
     - name: Checkout code
@@ -49,6 +52,25 @@ jobs:
         echo "REPO=${GITHUB_REPOSITORY,,}" >>${GITHUB_ENV}
         echo "COMMIT_SHORT_ID=${{ env.COMMIT_SHORT_ID }}"
         echo "REPO=${{ env.REPO }}"
+
+    ## Check commit message for no-ci, no-scan, no-cache
+    - name: Check commit message
+      id: check_commit_message
+      run: |
+        commit_message=$(git log --pretty=format:"%H %s %b" | grep "${{ env.COMMIT_FULL_ID }}" | sed 's,'${{ env.COMMIT_FULL_ID }}' ,,g')
+
+        if [[ "$commit_message" =~ .*"no-ci".* ]]; then
+            echo "❌ Found 'no-ci' in commit message. Stopping workflow!"
+            echo "no_ci=true" >> $GITHUB_OUTPUT
+
+        elif [[ "$commit_message" =~ .*"no-scan".* ]]; then
+            echo "🛑 Found 'no_scan' in commit message. Skipping image and Dockerfile scan!"
+            echo "no_scan=true" >> $GITHUB_OUTPUT
+            
+        elif [[ "$commit_message" =~ .*"no-cache".* ]]; then
+            echo "⚡ Found 'no_cache' in commit message. Skipping caching during image build!"
+            echo "no_cache=true" >> $GITHUB_OUTPUT
+        fi
 
     - name: Check existing image in GHCR
       id: check_existing_image
@@ -82,7 +104,9 @@ jobs:
             echo "is_image_tag_by_commit_id_existed=true" >> $GITHUB_OUTPUT
           fi        
         fi
+
     - name: Get Job ID
+      if: steps.check_commit_message.outputs.no_ci != 'true'
       id: get_job_id
       run: |
         curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
@@ -91,6 +115,7 @@ jobs:
         echo "job_id=$(cat job_id.txt)" >> $GITHUB_OUTPUT
 
     - name: Determine Commit ID and Comitter Email
+      if: steps.check_commit_message.outputs.no_ci != 'true'
       id: determine_commit_id_and_email_author
       run: |
         if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
@@ -107,14 +132,42 @@ jobs:
         echo "COMMIT_AUTHOR_EMAIL=${COMMIT_AUTHOR_EMAIL}" >> $GITHUB_OUTPUT
         echo "COMMIT_AUTHOR_NAME=${COMMIT_AUTHOR_NAME}" >> $GITHUB_OUTPUT
 
-    - name: Login to dockerhub
+    - name: Login to Docker Container Registry (no cache)
+      if: |
+        (github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false') && 
+        (steps.check_commit_message.outputs.no_cache == 'true' && steps.check_commit_message.outputs.no_ci != 'true')
       uses: docker/login-action@v2
       with:
         registry: docker.io
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+        username: '${{ secrets.DOCKER_HUB_USERNAME }}'
+        password: '${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}'
+    - name: Build Docker image (no cache)
+      if: |
+        (github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false') &&
+        (steps.check_commit_message.outputs.no_cache == 'true' && steps.check_commit_message.outputs.no_ci != 'true')
+      run: |
+        docker build --no-cache -t ${{ env.IMAGE_NAME }} .
+    - name: Login to GitHub Container Registry
+      if: |
+        (github.event_name == 'push' || github.event_name == 'pull_request' || 
+        steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false') && 
+        steps.check_commit_message.outputs.no_ci != 'true'
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: '${{ github.repository_owner }}'
+        password: '${{ secrets.GITHUB_TOKEN }}'
+    - name: Build Docker image (with cache)
+      if: |
+        (github.event_name == 'push' || github.event_name == 'pull_request') &&
+        (steps.check_commit_message.outputs.no_cache != 'true' && steps.check_commit_message.outputs.no_ci != 'true')
+      run: |
+        docker pull ghcr.io/${{ env.REPO }}:latest || true
+        docker build --build-arg BUILDKIT_INLINE_CACHE=1 --build-arg CACHEBUST=$(date +%s) \
+          --cache-from ghcr.io/${{ env.REPO }}:latest -t ${{ env.IMAGE_NAME }} .
 
     - name: Scan Dockerfile using Trivy and send mail if vulnerabilities detected
+      if: steps.check_commit_message.outputs.no_ci != 'true' && steps.check_commit_message.outputs.no_scan != 'true'
       uses: svtechnmaa/.github/actions/run_trivy_scan_dockerfile@main
       with:
         dockerfile_path: './Dockerfile'
@@ -124,12 +177,9 @@ jobs:
         commit_author_email: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_EMAIL }}
         commit_author_name: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_NAME }}
         job_id: ${{ steps.get_job_id.outputs.job_id }}
-    - name: Build Docker image
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
-      run: |
-        echo ${{ steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed }}
-        docker build --build-arg git_token=${{ secrets.GITHUB_TOKEN }} --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH=main --build-arg OWNER=${{ github.repository_owner }} -t ${{ env.IMAGE_NAME }} .
+
     - name: Scan Docker image using Trivy and send mail if vulnerabilities detected
+      if: steps.check_commit_message.outputs.no_ci != 'true' && steps.check_commit_message.outputs.no_scan != 'true'
       uses: svtechnmaa/.github/actions/run_trivy_scan_image@main
       with:
         trivy_server: ${{ secrets.TRIVY_SERVER }}
@@ -141,25 +191,24 @@ jobs:
         commit_author_email: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_EMAIL }}
         commit_author_name: ${{ steps.determine_commit_id_and_email_author.outputs.COMMIT_AUTHOR_NAME }}
         job_id: ${{ steps.get_job_id.outputs.job_id }}
-    - id: run_and_check_container_status
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
-      name: Run Tender app
+
+    - name: Run BNGBlaster app
+      id: run_and_check_container_status
+      if: |
+        (github.event_name == 'push' || github.event_name == 'pull_request' || 
+        steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false') && 
+        steps.check_commit_message.outputs.no_ci != 'true'
       uses: svtechnmaa/.github/actions/run_docker_container@main
       with:
         imageName: '${{ env.IMAGE_NAME }}'
         containerName: '${{ env.CONTAINER_NAME }}'
         containerMappingPort: '${{ env.CONTAINER_MAPPING_PORT }}'
-
-    - name: Login to GitHub Container Registry
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
-      uses: docker/login-action@v2
-      with:
-        registry: ghcr.io
-        username: '${{ github.repository_owner }}'
-        password: '${{ secrets.GITHUB_TOKEN }}'
         
     - name: Push image to GitHub Container Registry
-      if: github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false'
+      if: |
+        (github.event_name == 'push' || github.event_name == 'pull_request' || 
+        steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false') && 
+        steps.check_commit_message.outputs.no_ci != 'true'
       run: |
         docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.IMAGE_TEST_TAG }}
         docker tag ${{ env.IMAGE_NAME }}:latest ghcr.io/${{ env.REPO }}:${{ env.COMMIT_SHORT_ID }}
@@ -172,7 +221,7 @@ jobs:
     if: |
       github.event_name == 'push'|| 
       github.event_name == 'pull_request' || 
-      ( github.event_name == 'workflow_dispatch' && inputs.run_test ) 
+      ( github.event_name == 'workflow_dispatch' && inputs.run_test ) && needs.build.outputs.check_no_ci != 'true'
     needs: build
     runs-on: robot-dind
     permissions:
@@ -240,9 +289,8 @@ jobs:
             ./log.html
             ./report.html
 
-
   release:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: (github.event_name == 'push' || github.event_name == 'pull_request') && needs.build.outputs.check_no_ci != 'true'
     needs: test
     runs-on: ubuntu-dind
     steps:
