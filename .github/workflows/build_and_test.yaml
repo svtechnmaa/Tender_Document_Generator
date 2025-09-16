@@ -159,7 +159,7 @@ jobs:
         password: '${{ secrets.GITHUB_TOKEN }}'
     - name: Build Docker image (with cache)
       if: |
-        (github.event_name == 'push' || github.event_name == 'pull_request') &&
+        (github.event_name == 'push' || github.event_name == 'pull_request' || steps.check_existing_image.outputs.is_image_tag_by_commit_id_existed == 'false') &&
         (steps.check_commit_message.outputs.no_cache != 'true' && steps.check_commit_message.outputs.no_ci != 'true')
       run: |
         docker pull ghcr.io/${{ env.REPO }}:latest || true
@@ -461,3 +461,5 @@ jobs:
           GIT_USER_NAME: "svtechnmaa"
           GIT_USER_EMAIL: "nmaa@svtech.com.vn"
           RELEASE_IMAGE_TAG: v${{ steps.semantic.outputs.new_release_version }}
+
+          
